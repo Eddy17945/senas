@@ -1,9 +1,9 @@
-# src/detector/hand_detector.py (Versión Mejorada)
+# src/detector/hand_detector.py (Versión MediaPipe)
 
 import cv2
+import mediapipe as mp
 import numpy as np
 from typing import Optional, Tuple, List
-import math
 
 class HandDetector:
     def __init__(self, 
@@ -11,293 +11,286 @@ class HandDetector:
                  min_detection_confidence: float = 0.7,
                  min_tracking_confidence: float = 0.5):
         
-        # Configuración mejorada para detección de contornos
-        self.min_contour_area = 8000
-        self.max_contour_area = 80000
+        # Inicializar MediaPipe
+        self.mp_hands = mp.solutions.hands
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_drawing_styles = mp.solutions.drawing_styles
         
-        # Variables para tracking y filtrado
+        # Configurar el detector de manos
+        self.hands = self.mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=max_num_hands,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence
+        )
+        
+        # Variables para tracking mejorado
         self.hand_history = []
-        self.hand_detected = False
-        self.last_hand_center = None
         self.detection_stability = 0
-        
-        # Configuración de colores de piel más robusta
-        self.skin_lower = np.array([0, 20, 70], dtype=np.uint8)
-        self.skin_upper = np.array([20, 255, 255], dtype=np.uint8)
         
     def detect_hands(self, frame: np.ndarray) -> Tuple[np.ndarray, List]:
         """
-        Detecta manos en el frame usando OpenCV mejorado
+        Detecta manos usando MediaPipe con mayor precisión
         """
-        processed_frame = frame.copy()
+        # Convertir BGR a RGB
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        rgb_frame.flags.writeable = False
+        
+        # Procesar el frame con MediaPipe
+        results = self.hands.process(rgb_frame)
+        
+        # Convertir de vuelta a BGR
+        rgb_frame.flags.writeable = True
+        processed_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
+        
         hand_landmarks_list = []
         
-        # Preprocesamiento mejorado
-        # 1. Reducir ruido
-        frame_blur = cv2.GaussianBlur(frame, (5, 5), 0)
-        
-        # 2. Convertir a HSV para mejor detección de piel
-        hsv = cv2.cvtColor(frame_blur, cv2.COLOR_BGR2HSV)
-        
-        # 3. Crear máscara de piel más robusta
-        mask = self._create_skin_mask(hsv)
-        
-        # 4. Limpiar la máscara con operaciones morfológicas
-        mask = self._clean_mask(mask)
-        
-        # 5. Encontrar contornos
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # 6. Procesar contornos válidos
-        valid_contours = self._filter_contours(contours)
-        
-        for contour in valid_contours:
-            # Analizar contorno para extraer características
-            hand_features = self._analyze_hand_contour(contour, processed_frame)
-            
-            if hand_features:
-                landmarks = self._contour_to_landmarks(contour, hand_features, frame.shape)
+        # Procesar resultados si se detectan manos
+        if results.multi_hand_landmarks and results.multi_handedness:
+            for i, (hand_landmarks, handedness) in enumerate(
+                zip(results.multi_hand_landmarks, results.multi_handedness)
+            ):
+                # Determinar si es mano izquierda o derecha
+                hand_label = handedness.classification[0].label
+                hand_score = handedness.classification[0].score
+                
+                # Dibujar landmarks con estilo mejorado
+                self._draw_enhanced_landmarks(
+                    processed_frame, hand_landmarks, hand_label, hand_score
+                )
+                
+                # Extraer coordenadas de landmarks
+                landmarks = self._extract_landmarks(hand_landmarks)
                 if landmarks:
                     hand_landmarks_list.append(landmarks)
-                    self._draw_enhanced_landmarks(processed_frame, contour, hand_features)
+                    
+                    # Agregar información adicional sobre la mano
+                    landmarks.extend([
+                        1.0 if hand_label == "Right" else 0.0,  # Indicador de mano derecha
+                        hand_score  # Confianza de la detección
+                    ])
         
         return processed_frame, hand_landmarks_list
     
-    def _create_skin_mask(self, hsv_frame):
-        """Crear máscara de piel más robusta"""
-        # Máscara principal
-        mask1 = cv2.inRange(hsv_frame, self.skin_lower, self.skin_upper)
-        
-        # Máscara adicional para tonos de piel más claros
-        lower_skin2 = np.array([0, 10, 60], dtype=np.uint8)
-        upper_skin2 = np.array([20, 150, 255], dtype=np.uint8)
-        mask2 = cv2.inRange(hsv_frame, lower_skin2, upper_skin2)
-        
-        # Combinar máscaras
-        mask = cv2.bitwise_or(mask1, mask2)
-        
-        return mask
-    
-    def _clean_mask(self, mask):
-        """Limpiar la máscara con operaciones morfológicas"""
-        # Kernel para operaciones morfológicas
-        kernel_open = np.ones((3, 3), np.uint8)
-        kernel_close = np.ones((5, 5), np.uint8)
-        
-        # Eliminar ruido pequeño
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open, iterations=1)
-        
-        # Rellenar huecos
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=2)
-        
-        # Suavizar bordes
-        mask = cv2.GaussianBlur(mask, (3, 3), 0)
-        
-        return mask
-    
-    def _filter_contours(self, contours):
-        """Filtrar contornos para mantener solo los más probables de ser manos"""
-        valid_contours = []
-        
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            
-            # Filtro por área
-            if not (self.min_contour_area < area < self.max_contour_area):
-                continue
-            
-            # Filtro por forma (aspecto ratio)
-            x, y, w, h = cv2.boundingRect(contour)
-            aspect_ratio = float(w) / h
-            
-            if not (0.4 < aspect_ratio < 2.5):  # Manos no son demasiado alargadas
-                continue
-            
-            # Filtro por solidez (qué tan lleno está el contorno)
-            hull = cv2.convexHull(contour)
-            hull_area = cv2.contourArea(hull)
-            if hull_area > 0:
-                solidity = float(area) / hull_area
-                if solidity < 0.6:  # Manos tienen buena solidez
-                    continue
-            
-            valid_contours.append(contour)
-        
-        # Ordenar por área (más grande primero)
-        valid_contours.sort(key=cv2.contourArea, reverse=True)
-        
-        # Tomar solo las 2 más grandes (máximo 2 manos)
-        return valid_contours[:2]
-    
-    def _analyze_hand_contour(self, contour, frame):
-        """Analizar contorno para extraer características de la mano"""
-        # Calcular hull convexo
-        hull = cv2.convexHull(contour, returnPoints=False)
-        
-        if len(hull) < 4:
-            return None
-        
-        # Calcular defectos de convexidad (espacios entre dedos)
-        defects = cv2.convexityDefects(contour, hull)
-        
-        if defects is None:
-            return None
-        
-        # Encontrar centro de masa
-        M = cv2.moments(contour)
-        if M['m00'] == 0:
-            return None
-        
-        center_x = int(M['m10'] / M['m00'])
-        center_y = int(M['m01'] / M['m00'])
-        
-        # Analizar defectos para encontrar dedos
-        finger_tips = []
-        finger_valleys = []
-        
-        for i in range(defects.shape[0]):
-            s, e, f, d = defects[i, 0]
-            start = tuple(contour[s][0])
-            end = tuple(contour[e][0])
-            far = tuple(contour[f][0])
-            
-            # Calcular distancias
-            a = math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2)
-            b = math.sqrt((far[0] - start[0])**2 + (far[1] - start[1])**2)
-            c = math.sqrt((end[0] - far[0])**2 + (end[1] - far[1])**2)
-            
-            # Calcular ángulo
-            if b != 0 and c != 0:
-                angle = math.acos((b**2 + c**2 - a**2) / (2*b*c)) * 180 / math.pi
-                
-                # Si el ángulo es agudo, probablemente es un valle entre dedos
-                if angle <= 90 and d > 20:
-                    finger_valleys.append(far)
-                    
-                    # Los puntos start y end podrían ser puntas de dedos
-                    if start[1] < center_y:  # Por encima del centro
-                        finger_tips.append(start)
-                    if end[1] < center_y:
-                        finger_tips.append(end)
-        
-        # Eliminar duplicados de puntas de dedos
-        finger_tips = self._remove_duplicate_points(finger_tips, threshold=30)
-        
-        return {
-            'center': (center_x, center_y),
-            'finger_tips': finger_tips,
-            'finger_valleys': finger_valleys,
-            'contour_area': cv2.contourArea(contour),
-            'hull_area': cv2.contourArea(cv2.convexHull(contour))
-        }
-    
-    def _remove_duplicate_points(self, points, threshold=30):
-        """Eliminar puntos duplicados que están muy cerca"""
-        if not points:
-            return []
-        
-        unique_points = [points[0]]
-        
-        for point in points[1:]:
-            is_duplicate = False
-            for unique_point in unique_points:
-                distance = math.sqrt((point[0] - unique_point[0])**2 + 
-                                   (point[1] - unique_point[1])**2)
-                if distance < threshold:
-                    is_duplicate = True
-                    break
-            
-            if not is_duplicate:
-                unique_points.append(point)
-        
-        return unique_points
-    
-    def _contour_to_landmarks(self, contour, hand_features, frame_shape):
-        """Convertir características del contorno a landmarks"""
-        height, width = frame_shape[:2]
+    def _extract_landmarks(self, hand_landmarks) -> List:
+        """
+        Extrae las coordenadas normalizadas de los 21 landmarks de la mano
+        """
         landmarks = []
         
-        # Normalizar centro de masa
-        center = hand_features['center']
-        landmarks.extend([center[0] / width, center[1] / height, 0.0])
+        # MediaPipe proporciona 21 landmarks específicos para cada mano
+        for landmark in hand_landmarks.landmark:
+            landmarks.extend([landmark.x, landmark.y, landmark.z])
         
-        # Agregar puntas de dedos normalizadas
-        finger_tips = hand_features['finger_tips']
-        for tip in finger_tips[:5]:  # Máximo 5 dedos
-            landmarks.extend([tip[0] / width, tip[1] / height, 0.0])
-        
-        # Agregar valles entre dedos
-        valleys = hand_features['finger_valleys']
-        for valley in valleys[:4]:  # Máximo 4 valles
-            landmarks.extend([valley[0] / width, valley[1] / height, 0.0])
-        
-        # Rellenar hasta 63 elementos (21 puntos * 3 coordenadas)
-        while len(landmarks) < 63:
-            landmarks.extend([0.0, 0.0, 0.0])
-        
-        return landmarks[:63]
+        return landmarks
     
-    def _draw_enhanced_landmarks(self, frame, contour, hand_features):
-        """Dibujar landmarks y características mejoradas"""
-        # Dibujar contorno
-        cv2.drawContours(frame, [contour], -1, (0, 255, 0), 2)
+    def _draw_enhanced_landmarks(self, frame, hand_landmarks, hand_label, confidence):
+        """
+        Dibuja landmarks con información adicional y mejor estilo
+        """
+        height, width, _ = frame.shape
         
-        # Dibujar hull convexo
-        hull = cv2.convexHull(contour)
-        cv2.drawContours(frame, [hull], -1, (0, 0, 255), 2)
+        # Dibujar conexiones de la mano
+        self.mp_drawing.draw_landmarks(
+            frame,
+            hand_landmarks,
+            self.mp_hands.HAND_CONNECTIONS,
+            self.mp_drawing_styles.get_default_hand_landmarks_style(),
+            self.mp_drawing_styles.get_default_hand_connections_style()
+        )
         
-        # Dibujar centro
-        center = hand_features['center']
-        cv2.circle(frame, center, 8, (255, 0, 255), -1)
-        cv2.putText(frame, 'CENTER', (center[0] + 10, center[1]), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
+        # Agregar etiquetas a landmarks importantes
+        landmark_names = {
+            0: "Muñeca",
+            4: "Pulgar",
+            8: "Índice", 
+            12: "Medio",
+            16: "Anular",
+            20: "Meñique"
+        }
         
-        # Dibujar puntas de dedos
-        for i, tip in enumerate(hand_features['finger_tips']):
-            cv2.circle(frame, tip, 6, (0, 255, 255), -1)
-            cv2.putText(frame, f'F{i+1}', (tip[0] + 10, tip[1]), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+        for idx, name in landmark_names.items():
+            if idx < len(hand_landmarks.landmark):
+                landmark = hand_landmarks.landmark[idx]
+                x = int(landmark.x * width)
+                y = int(landmark.y * height)
+                
+                # Dibujar punto más visible
+                cv2.circle(frame, (x, y), 8, (0, 255, 255), -1)
+                cv2.circle(frame, (x, y), 8, (0, 0, 0), 2)
+                
+                # Etiqueta del punto
+                cv2.putText(frame, name, (x + 10, y - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         
-        # Dibujar valles
-        for i, valley in enumerate(hand_features['finger_valleys']):
-            cv2.circle(frame, valley, 4, (255, 255, 0), -1)
-            cv2.putText(frame, f'V{i+1}', (valley[0] + 10, valley[1]), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
+        # Información de la mano detectada
+        wrist = hand_landmarks.landmark[0]
+        wrist_x = int(wrist.x * width)
+        wrist_y = int(wrist.y * height)
         
-        # Mostrar número de dedos detectados
-        num_fingers = len(hand_features['finger_tips'])
-        cv2.putText(frame, f'Dedos: {num_fingers}', (50, 50), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        # Mostrar etiqueta de mano y confianza
+        label_text = f"{hand_label}: {confidence:.2f}"
+        cv2.putText(frame, label_text, (wrist_x - 50, wrist_y - 30),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        
+        # Análisis de dedos extendidos
+        fingers_up = self._count_fingers(hand_landmarks)
+        cv2.putText(frame, f"Dedos: {fingers_up}", (wrist_x - 50, wrist_y - 10),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+    
+    def _count_fingers(self, hand_landmarks) -> int:
+        """
+        Cuenta cuántos dedos están extendidos usando landmarks de MediaPipe
+        """
+        # IDs de las puntas de los dedos
+        tip_ids = [4, 8, 12, 16, 20]  # Pulgar, Índice, Medio, Anular, Meñique
+        pip_ids = [3, 6, 10, 14, 18]  # Articulaciones PIP correspondientes
+        
+        fingers = []
+        landmarks = hand_landmarks.landmark
+        
+        # Pulgar (comparación horizontal)
+        if landmarks[tip_ids[0]].x > landmarks[pip_ids[0]].x:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+        
+        # Otros cuatro dedos (comparación vertical)
+        for i in range(1, 5):
+            if landmarks[tip_ids[i]].y < landmarks[pip_ids[i]].y:
+                fingers.append(1)
+            else:
+                fingers.append(0)
+        
+        return sum(fingers)
+    
+    def get_finger_positions(self, landmarks: List) -> dict:
+        """
+        Obtiene las posiciones específicas de cada dedo
+        """
+        if not landmarks or len(landmarks) < 63:  # 21 landmarks * 3 coordenadas
+            return {}
+        
+        landmarks_array = np.array(landmarks[:63]).reshape(-1, 3)
+        
+        finger_positions = {
+            'wrist': landmarks_array[0],
+            'thumb_tip': landmarks_array[4],
+            'thumb_ip': landmarks_array[3],
+            'index_tip': landmarks_array[8],
+            'index_pip': landmarks_array[6],
+            'middle_tip': landmarks_array[12],
+            'middle_pip': landmarks_array[10],
+            'ring_tip': landmarks_array[16],
+            'ring_pip': landmarks_array[14],
+            'pinky_tip': landmarks_array[20],
+            'pinky_pip': landmarks_array[18]
+        }
+        
+        return finger_positions
+    
+    def get_hand_orientation(self, landmarks: List) -> str:
+        """
+        Determina la orientación general de la mano
+        """
+        positions = self.get_finger_positions(landmarks)
+        if not positions:
+            return "unknown"
+        
+        wrist = positions['wrist']
+        middle_tip = positions['middle_tip']
+        
+        # Calcular el vector de la mano
+        dx = middle_tip[0] - wrist[0]
+        dy = middle_tip[1] - wrist[1]
+        
+        # Determinar orientación basada en el ángulo
+        angle = np.arctan2(dy, dx) * 180 / np.pi
+        
+        if -45 < angle < 45:
+            return "right"
+        elif 45 < angle < 135:
+            return "down"
+        elif angle > 135 or angle < -135:
+            return "left"
+        else:
+            return "up"
+    
+    def calculate_gesture_features(self, landmarks: List) -> dict:
+        """
+        Calcula características avanzadas del gesto para clasificación
+        """
+        positions = self.get_finger_positions(landmarks)
+        if not positions:
+            return {}
+        
+        features = {}
+        
+        # 1. Estado de cada dedo (extendido/doblado)
+        features['thumb_extended'] = positions['thumb_tip'][1] < positions['thumb_ip'][1]
+        features['index_extended'] = positions['index_tip'][1] < positions['index_pip'][1]
+        features['middle_extended'] = positions['middle_tip'][1] < positions['middle_pip'][1]
+        features['ring_extended'] = positions['ring_tip'][1] < positions['ring_pip'][1]
+        features['pinky_extended'] = positions['pinky_tip'][1] < positions['pinky_pip'][1]
+        
+        # 2. Distancias entre dedos
+        features['thumb_index_distance'] = np.linalg.norm(
+            positions['thumb_tip'] - positions['index_tip']
+        )
+        features['index_middle_distance'] = np.linalg.norm(
+            positions['index_tip'] - positions['middle_tip']
+        )
+        
+        # 3. Apertura de la mano
+        fingertips = [positions['thumb_tip'], positions['index_tip'], 
+                     positions['middle_tip'], positions['ring_tip'], positions['pinky_tip']]
+        
+        x_coords = [tip[0] for tip in fingertips]
+        y_coords = [tip[1] for tip in fingertips]
+        
+        features['hand_width'] = max(x_coords) - min(x_coords)
+        features['hand_height'] = max(y_coords) - min(y_coords)
+        
+        # 4. Centro de masa de la mano
+        center_x = sum(x_coords) / len(x_coords)
+        center_y = sum(y_coords) / len(y_coords)
+        features['center_of_mass'] = (center_x, center_y)
+        
+        return features
     
     def get_hand_bbox(self, landmarks: List, frame_shape: Tuple) -> Optional[Tuple]:
-        """Obtiene la caja delimitadora de la mano"""
-        if not landmarks:
+        """
+        Obtiene la caja delimitadora de la mano con mejor precisión
+        """
+        if not landmarks or len(landmarks) < 63:
             return None
         
         height, width = frame_shape[:2]
+        landmarks_array = np.array(landmarks[:63]).reshape(-1, 3)
         
-        # Convertir landmarks normalizados a píxeles
-        x_coords = [landmarks[i] * width for i in range(0, len(landmarks), 3) if landmarks[i] > 0]
-        y_coords = [landmarks[i] * height for i in range(1, len(landmarks), 3) if landmarks[i] > 0]
+        # Obtener coordenadas en píxeles
+        x_coords = landmarks_array[:, 0] * width
+        y_coords = landmarks_array[:, 1] * height
         
-        if not x_coords or not y_coords:
-            return None
-        
-        # Obtener coordenadas mínimas y máximas
+        # Calcular bounding box
         x_min, x_max = int(min(x_coords)), int(max(x_coords))
         y_min, y_max = int(min(y_coords)), int(max(y_coords))
         
-        # Añadir padding
-        padding = 20
-        x_min = max(0, x_min - padding)
-        y_min = max(0, y_min - padding)
-        x_max = min(width, x_max + padding)
-        y_max = min(height, y_max + padding)
+        # Agregar padding proporcional
+        padding_x = int((x_max - x_min) * 0.2)
+        padding_y = int((y_max - y_min) * 0.2)
+        
+        x_min = max(0, x_min - padding_x)
+        y_min = max(0, y_min - padding_y)
+        x_max = min(width, x_max + padding_x)
+        y_max = min(height, y_max + padding_y)
         
         return (x_min, y_min, x_max, y_max)
     
     def extract_hand_region(self, frame: np.ndarray, bbox: Tuple) -> Optional[np.ndarray]:
-        """Extrae la región de la mano del frame"""
+        """
+        Extrae la región de la mano del frame
+        """
         if bbox is None:
             return None
         
