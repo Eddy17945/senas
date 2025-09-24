@@ -22,8 +22,9 @@ class Config:
     EPOCHS = 50
     LEARNING_RATE = 0.001
     
-    # Letras que vamos a detectar (empezamos simple)
-    SUPPORTED_LETTERS = ['A', 'B', 'C', 'D', 'E']
+    # Letras que vamos a detectar (alfabeto completo)
+    SUPPORTED_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+                        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
     
     # Configuración de audio
     VOICE_RATE = 200
