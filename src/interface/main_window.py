@@ -1,4 +1,4 @@
-# src/interface/main_window.py
+# src/interface/main_window.py (Versión Estable con Mejoras)
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -38,6 +38,7 @@ class MainWindow:
         self.current_frame = None
         self.detected_letter = ""
         self.word_buffer = ""
+        self.detection_count = 0
         
         # Configurar interfaz
         self.setup_ui()
@@ -47,9 +48,7 @@ class MainWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
     
     def setup_ui(self):
-        """
-        Configura la interfaz de usuario
-        """
+        """Configura la interfaz de usuario mejorada"""
         # Frame principal
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -79,7 +78,20 @@ class MainWindow:
             text="Reproducir Audio", 
             command=self.speak_text
         )
-        self.speak_button.pack(side=tk.LEFT)
+        self.speak_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Nuevo: Control de sensibilidad
+        ttk.Label(control_frame, text="Sensibilidad:").pack(side=tk.LEFT, padx=(20, 5))
+        self.sensitivity_var = tk.IntVar(value=5)
+        sensitivity_scale = ttk.Scale(
+            control_frame, 
+            from_=1, to=10, 
+            variable=self.sensitivity_var,
+            orient=tk.HORIZONTAL,
+            length=100,
+            command=self.update_sensitivity
+        )
+        sensitivity_scale.pack(side=tk.LEFT)
         
         # Frame central - Video y resultados
         content_frame = ttk.Frame(main_frame)
@@ -92,23 +104,40 @@ class MainWindow:
         self.video_label = ttk.Label(video_frame, text="Cámara no iniciada")
         self.video_label.pack(expand=True)
         
-        # Frame de resultados
+        # Frame de resultados - MEJORADO
         result_frame = ttk.LabelFrame(content_frame, text="Resultados", padding="10")
         result_frame.pack(side=tk.RIGHT, fill=tk.Y, ipadx=20)
         
-        # Letra detectada
+        # Letra detectada con confianza
         ttk.Label(result_frame, text="Letra Detectada:", font=('Arial', 12, 'bold')).pack(anchor=tk.W)
+        
+        detection_info_frame = ttk.Frame(result_frame)
+        detection_info_frame.pack(pady=5)
         
         self.letter_var = tk.StringVar(value="-")
         letter_display = ttk.Label(
-            result_frame, 
+            detection_info_frame, 
             textvariable=self.letter_var,
             font=('Arial', 48, 'bold'),
             foreground='#E74C3C'
         )
-        letter_display.pack(pady=10)
+        letter_display.pack()
         
-        # Palabra formada
+        # Nuevo: Barra de confianza simple
+        ttk.Label(result_frame, text="Confianza:", font=('Arial', 10)).pack(anchor=tk.W, pady=(10, 0))
+        self.confidence_var = tk.DoubleVar()
+        confidence_bar = ttk.Progressbar(
+            result_frame,
+            variable=self.confidence_var,
+            maximum=100,
+            length=200
+        )
+        confidence_bar.pack(pady=2)
+        
+        self.confidence_label = ttk.Label(result_frame, text="0%")
+        self.confidence_label.pack()
+        
+        # Palabra formada - mantenemos igual
         ttk.Label(result_frame, text="Palabra:", font=('Arial', 12, 'bold')).pack(anchor=tk.W, pady=(20, 0))
         
         self.word_text = tk.Text(
@@ -140,7 +169,7 @@ class MainWindow:
             command=self.add_space
         ).pack(side=tk.RIGHT)
         
-        # Frame inferior - Estado
+        # Frame inferior - Estado mejorado
         status_frame = ttk.Frame(main_frame)
         status_frame.pack(fill=tk.X, pady=(10, 0))
         
@@ -148,19 +177,70 @@ class MainWindow:
         status_label = ttk.Label(status_frame, textvariable=self.status_var)
         status_label.pack(side=tk.LEFT)
         
-        # Información de letras soportadas
-        supported_letters = ", ".join(Config.SUPPORTED_LETTERS)
-        info_label = ttk.Label(
-            status_frame, 
-            text=f"Letras soportadas: {supported_letters}",
-            foreground='#7F8C8D'
+        # Nuevo: Contador de detecciones
+        self.detection_counter_var = tk.StringVar(value="Detecciones: 0")
+        counter_label = ttk.Label(status_frame, textvariable=self.detection_counter_var)
+        counter_label.pack(side=tk.RIGHT)
+        
+        # Nuevo: Botón para mostrar letras soportadas
+        letters_button = ttk.Button(
+            status_frame,
+            text="Ver Letras Soportadas",
+            command=self.show_supported_letters
         )
-        info_label.pack(side=tk.RIGHT)
+        letters_button.pack(side=tk.RIGHT, padx=(0, 20))
+    
+    def update_sensitivity(self, value):
+        """Actualiza la sensibilidad del clasificador"""
+        sensitivity = int(float(value))
+        self.gesture_classifier.set_stability_threshold(sensitivity)
+    
+    def show_supported_letters(self):
+        """Muestra ventana con letras soportadas"""
+        letters_window = tk.Toplevel(self.root)
+        letters_window.title("Letras Soportadas")
+        letters_window.geometry("600x400")
+        letters_window.configure(bg='white')
+        
+        # Título
+        title_label = ttk.Label(letters_window, text="Alfabeto de Lenguaje de Señas Soportado", 
+                               font=('Arial', 16, 'bold'))
+        title_label.pack(pady=10)
+        
+        # Frame para las letras
+        letters_frame = ttk.Frame(letters_window)
+        letters_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Mostrar letras en grid
+        row = 0
+        col = 0
+        for i, letter in enumerate(Config.SUPPORTED_LETTERS):
+            letter_label = ttk.Label(
+                letters_frame, 
+                text=letter, 
+                font=('Arial', 20, 'bold'),
+                background='lightblue',
+                foreground='darkblue',
+                width=3,
+                anchor='center'
+            )
+            letter_label.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
+            
+            col += 1
+            if col >= 8:  # 8 letras por fila
+                col = 0
+                row += 1
+        
+        # Configurar grid
+        for i in range(8):
+            letters_frame.columnconfigure(i, weight=1)
+        
+        # Botón cerrar
+        close_button = ttk.Button(letters_window, text="Cerrar", command=letters_window.destroy)
+        close_button.pack(pady=10)
     
     def setup_camera(self):
-        """
-        Configura la cámara
-        """
+        """Configura la cámara (versión original que funciona)"""
         try:
             self.cap = cv2.VideoCapture(Config.CAMERA_INDEX)
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.CAMERA_WIDTH)
@@ -176,18 +256,14 @@ class MainWindow:
             self.status_var.set("Error en cámara")
     
     def toggle_detection(self):
-        """
-        Alterna entre iniciar y detener la detección
-        """
+        """Alterna entre iniciar y detener la detección"""
         if not self.is_running:
             self.start_detection()
         else:
             self.stop_detection()
     
     def start_detection(self):
-        """
-        Inicia la detección de gestos
-        """
+        """Inicia la detección de gestos"""
         if not self.cap or not self.cap.isOpened():
             messagebox.showerror("Error", "Cámara no disponible")
             return
@@ -202,17 +278,13 @@ class MainWindow:
         detection_thread.start()
     
     def stop_detection(self):
-        """
-        Detiene la detección de gestos
-        """
+        """Detiene la detección de gestos"""
         self.is_running = False
         self.start_button.config(text="Iniciar Detección")
         self.status_var.set("Detección detenida")
     
     def detection_loop(self):
-        """
-        Bucle principal de detección
-        """
+        """Bucle principal de detección"""
         while self.is_running:
             try:
                 ret, frame = self.cap.read()
@@ -242,9 +314,7 @@ class MainWindow:
                 continue
     
     def update_ui(self, frame, detected_letter):
-        """
-        Actualiza la interfaz con el frame y la letra detectada
-        """
+        """Actualiza la interfaz con el frame y la letra detectada"""
         try:
             # Convertir frame para tkinter
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -255,43 +325,42 @@ class MainWindow:
             self.video_label.configure(image=frame_tk)
             self.video_label.image = frame_tk
             
-            # Actualizar letra detectada
+            # Actualizar letra detectada y estadísticas
             if detected_letter and detected_letter != self.detected_letter:
                 self.detected_letter = detected_letter
                 self.letter_var.set(detected_letter)
+                self.detection_count += 1
+                self.detection_counter_var.set(f"Detecciones: {self.detection_count}")
             elif not detected_letter:
                 self.letter_var.set("-")
+            
+            # Actualizar confianza
+            confidence = self.gesture_classifier.get_detection_confidence()
+            self.confidence_var.set(confidence * 100)
+            self.confidence_label.config(text=f"{confidence*100:.1f}%")
         
         except Exception as e:
             print(f"Error actualizando UI: {e}")
     
     def add_letter_to_word(self):
-        """
-        Agrega la letra detectada a la palabra
-        """
+        """Agrega la letra detectada a la palabra"""
         if self.detected_letter and self.detected_letter != "-":
             self.word_text.insert(tk.END, self.detected_letter)
             self.word_text.see(tk.END)
     
     def add_space(self):
-        """
-        Agrega un espacio a la palabra
-        """
+        """Agrega un espacio a la palabra"""
         self.word_text.insert(tk.END, " ")
         self.word_text.see(tk.END)
     
     def clear_text(self):
-        """
-        Limpia el texto formado
-        """
+        """Limpia el texto formado"""
         self.word_text.delete(1.0, tk.END)
         self.letter_var.set("-")
         self.detected_letter = ""
     
     def speak_text(self):
-        """
-        Reproduce el texto formado en audio
-        """
+        """Reproduce el texto formado en audio"""
         text = self.word_text.get(1.0, tk.END).strip()
         if text:
             self.audio_manager.speak(text)
@@ -300,9 +369,7 @@ class MainWindow:
             messagebox.showinfo("Información", "No hay texto para reproducir")
     
     def on_closing(self):
-        """
-        Maneja el cierre de la aplicación
-        """
+        """Maneja el cierre de la aplicación"""
         self.stop_detection()
         if self.cap:
             self.cap.release()
@@ -310,7 +377,5 @@ class MainWindow:
         self.root.destroy()
     
     def run(self):
-        """
-        Inicia la aplicación
-        """
+        """Inicia la aplicación"""
         self.root.mainloop()
