@@ -1,10 +1,10 @@
 # src/detector/gesture_classifier.py (Versión MediaPipe)
 
-import numpy as np
-import cv2
+import numpy as np  # type: ignore
+import cv2  # type: ignore
 from typing import List, Optional, Dict
 try:
-    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.ensemble import RandomForestClassifier  # type: ignore
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False

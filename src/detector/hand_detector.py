@@ -1,8 +1,8 @@
 # src/detector/hand_detector.py (Versión MediaPipe)
 
-import cv2
-import mediapipe as mp
-import numpy as np
+import cv2  # type: ignore
+import mediapipe as mp  # type: ignore
+import numpy as np # type: ignore
 from typing import Optional, Tuple, List
 
 class HandDetector:
