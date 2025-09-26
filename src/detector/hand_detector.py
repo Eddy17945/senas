@@ -1,8 +1,8 @@
 # src/detector/hand_detector.py (Versión MediaPipe)
 
-import cv2  # type: ignore
-import mediapipe as mp  # type: ignore
-import numpy as np # type: ignore
+import cv2
+import mediapipe as mp
+import numpy as np
 from typing import Optional, Tuple, List
 
 class HandDetector:
@@ -28,9 +28,9 @@ class HandDetector:
         self.hand_history = []
         self.detection_stability = 0
         
-    def detect_hands(self, frame: np.ndarray) -> Tuple[np.ndarray, List]:
+    def detect_hands(self, frame: np.ndarray) -> Tuple[np.ndarray, Dict]:
         """
-        Detecta manos usando MediaPipe con mayor precisión
+        Detecta manos usando MediaPipe y las clasifica por izquierda/derecha
         """
         # Convertir BGR a RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -43,7 +43,12 @@ class HandDetector:
         rgb_frame.flags.writeable = True
         processed_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
         
-        hand_landmarks_list = []
+        # Diccionario para almacenar landmarks por mano
+        hands_data = {
+            'left': None,
+            'right': None,
+            'landmarks_list': []  # Para compatibilidad con código existente
+        }
         
         # Procesar resultados si se detectan manos
         if results.multi_hand_landmarks and results.multi_handedness:
@@ -54,23 +59,22 @@ class HandDetector:
                 hand_label = handedness.classification[0].label
                 hand_score = handedness.classification[0].score
                 
+                # MediaPipe devuelve "Left"/"Right" desde la perspectiva de la persona
+                # Pero en imagen espejo necesitamos invertir
+                actual_hand = "right" if hand_label == "Left" else "left"
+                
                 # Dibujar landmarks con estilo mejorado
                 self._draw_enhanced_landmarks(
-                    processed_frame, hand_landmarks, hand_label, hand_score
+                    processed_frame, hand_landmarks, actual_hand, hand_score
                 )
                 
                 # Extraer coordenadas de landmarks
                 landmarks = self._extract_landmarks(hand_landmarks)
                 if landmarks:
-                    hand_landmarks_list.append(landmarks)
-                    
-                    # Agregar información adicional sobre la mano
-                    landmarks.extend([
-                        1.0 if hand_label == "Right" else 0.0,  # Indicador de mano derecha
-                        hand_score  # Confianza de la detección
-                    ])
+                    hands_data[actual_hand] = landmarks
+                    hands_data['landmarks_list'].append(landmarks)  # Para compatibilidad
         
-        return processed_frame, hand_landmarks_list
+        return processed_frame, hands_data
     
     def _extract_landmarks(self, hand_landmarks) -> List:
         """

@@ -9,6 +9,7 @@ from typing import Optional
 
 from ..detector.hand_detector import HandDetector
 from ..detector.gesture_classifier import GestureClassifier
+from ..detector.syllable_classifier import SyllableClassifier
 from ..utils.audio_manager import AudioManager
 from ..config.settings import Config
 
@@ -27,6 +28,7 @@ class MainWindow:
         )
         self.gesture_classifier = GestureClassifier()
         self.gesture_classifier.create_simple_classifier()
+        self.syllable_classifier = SyllableClassifier()  # Nuevo clasificador
         self.audio_manager = AudioManager(
             rate=Config.VOICE_RATE,
             volume=Config.VOICE_VOLUME
@@ -37,8 +39,22 @@ class MainWindow:
         self.is_running = False
         self.current_frame = None
         self.detected_letter = ""
+        self.detected_syllable = ""  # Nueva variable para sílabas
+        self.detection_mode = "letters"  # "letters" o "syllables"
         self.word_buffer = ""
         self.detection_count = 0
+        
+        # Variables para auto-agregado de letras
+        self.auto_add_enabled = True
+        self.last_stable_letter = ""
+        self.stable_letter_count = 0
+        self.auto_add_threshold = 15  # Frames necesarios para auto-agregar
+        self.last_added_letter = ""
+        self.cooldown_count = 0
+        self.cooldown_threshold = 30  # Frames de espera entre letras
+        self.auto_space_enabled = False
+        self.no_detection_count = 0
+        self.auto_space_threshold = 90  # Frames sin detección para auto-espacio
         
         # Configurar interfaz
         self.setup_ui()
@@ -79,6 +95,65 @@ class MainWindow:
             command=self.speak_text
         )
         self.speak_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Nuevo: Selector de modo
+        mode_frame = ttk.LabelFrame(control_frame, text="Modo de Detección", padding="5")
+        mode_frame.pack(side=tk.LEFT, padx=(20, 10))
+        
+        self.mode_var = tk.StringVar(value="letters")
+        letters_radio = ttk.Radiobutton(
+            mode_frame,
+            text="Letras",
+            variable=self.mode_var,
+            value="letters",
+            command=self.change_detection_mode
+        )
+        letters_radio.pack()
+        
+        syllables_radio = ttk.Radiobutton(
+            mode_frame,
+            text="Sílabas",
+            variable=self.mode_var,
+            value="syllables",
+            command=self.change_detection_mode
+        )
+        syllables_radio.pack()
+        
+        # Nuevo: Control de auto-agregado
+        auto_add_frame = ttk.Frame(control_frame)
+        auto_add_frame.pack(side=tk.LEFT, padx=(20, 10))
+        
+        self.auto_add_var = tk.BooleanVar(value=True)
+        auto_add_check = ttk.Checkbutton(
+            auto_add_frame,
+            text="Auto-agregar letras",
+            variable=self.auto_add_var,
+            command=self.toggle_auto_add
+        )
+        auto_add_check.pack()
+        
+        # Checkbox para auto-espacio
+        self.auto_space_var = tk.BooleanVar(value=False)
+        auto_space_check = ttk.Checkbutton(
+            auto_add_frame,
+            text="Auto-espacio",
+            variable=self.auto_space_var,
+            command=self.toggle_auto_space
+        )
+        auto_space_check.pack()
+        
+        # Control de velocidad de auto-agregado
+        ttk.Label(auto_add_frame, text="Velocidad:", font=('Arial', 8)).pack()
+        self.speed_var = tk.IntVar(value=5)  # 5 = velocidad media
+        speed_scale = ttk.Scale(
+            auto_add_frame,
+            from_=1, to=10,
+            variable=self.speed_var,
+            orient=tk.HORIZONTAL,
+            length=80,
+            command=self.update_auto_add_speed
+        )
+        speed_scale.pack()
         
         # Nuevo: Control de sensibilidad
         ttk.Label(control_frame, text="Sensibilidad:").pack(side=tk.LEFT, padx=(20, 5))
@@ -182,6 +257,14 @@ class MainWindow:
         counter_label = ttk.Label(status_frame, textvariable=self.detection_counter_var)
         counter_label.pack(side=tk.RIGHT)
         
+        # Nuevo: Botón para mostrar galería de referencias
+        gallery_button = ttk.Button(
+            status_frame,
+            text="Galería de Referencias",
+            command=self.show_reference_gallery
+        )
+        gallery_button.pack(side=tk.RIGHT, padx=(0, 10))
+        
         # Nuevo: Botón para mostrar letras soportadas
         letters_button = ttk.Button(
             status_frame,
@@ -190,10 +273,55 @@ class MainWindow:
         )
         letters_button.pack(side=tk.RIGHT, padx=(0, 20))
     
+    def change_detection_mode(self):
+        """Cambia entre modo de letras y sílabas"""
+        self.detection_mode = self.mode_var.get()
+        
+        # Resetear historial de detecciones al cambiar modo
+        if self.detection_mode == "syllables":
+            self.syllable_classifier.reset_detection_history()
+            self.status_var.set("Modo sílabas activado - Use ambas manos")
+        else:
+            self.gesture_classifier.reset_detection_history()
+            self.status_var.set("Modo letras activado - Use una mano")
+        
+        # Limpiar detección actual
+        self.detected_letter = ""
+        self.detected_syllable = ""
+        self.letter_var.set("-")
+    
+    def toggle_auto_space(self):
+        """Activa/desactiva el auto-espacio"""
+        self.auto_space_enabled = self.auto_space_var.get()
+        status = "activado" if self.auto_space_enabled else "desactivado"
+        self.status_var.set(f"Auto-espacio {status}")
+    
+    def toggle_auto_add(self):
+        """Activa/desactiva el auto-agregado de letras"""
+        self.auto_add_enabled = self.auto_add_var.get()
+        status = "activado" if self.auto_add_enabled else "desactivado"
+        self.status_var.set(f"Auto-agregado {status}")
+    
+    def update_auto_add_speed(self, value):
+        """Actualiza la velocidad del auto-agregado"""
+        speed = int(float(value))
+        # Convertir escala 1-10 a frames necesarios (más velocidad = menos frames)
+        self.auto_add_threshold = max(5, 25 - (speed * 2))
+        self.cooldown_threshold = max(10, 50 - (speed * 4))
+    
     def update_sensitivity(self, value):
         """Actualiza la sensibilidad del clasificador"""
         sensitivity = int(float(value))
         self.gesture_classifier.set_stability_threshold(sensitivity)
+    
+    def show_reference_gallery(self):
+        """Muestra la galería de referencias"""
+        try:
+            from .reference_gallery import ReferenceGallery
+            gallery = ReferenceGallery(self)
+            gallery.show_gallery()
+        except ImportError as e:
+            messagebox.showerror("Error", f"No se pudo cargar la galería: {e}")
     
     def show_supported_letters(self):
         """Muestra ventana con letras soportadas"""
@@ -294,27 +422,36 @@ class MainWindow:
                 # Voltear frame horizontalmente para efecto espejo
                 frame = cv2.flip(frame, 1)
                 
-                # Detectar manos
-                processed_frame, hand_landmarks_list = self.hand_detector.detect_hands(frame)
+                # Detectar manos (ahora retorna diccionario con left/right)
+                processed_frame, hands_data = self.hand_detector.detect_hands(frame)
                 
-                # Clasificar gesto si hay manos detectadas
-                detected_letter = None
-                if hand_landmarks_list:
-                    for landmarks in hand_landmarks_list:
-                        letter = self.gesture_classifier.predict_gesture(landmarks)
-                        if letter:
-                            detected_letter = letter
-                            break
+                detected_result = None
+                
+                if self.detection_mode == "syllables":
+                    # Modo sílabas - necesita ambas manos
+                    if hands_data['left'] and hands_data['right']:
+                        detected_result = self.syllable_classifier.predict_syllable(
+                            hands_data['left'], 
+                            hands_data['right']
+                        )
+                elif self.detection_mode == "letters":
+                    # Modo letras - usa cualquier mano disponible
+                    if hands_data['landmarks_list']:
+                        for landmarks in hands_data['landmarks_list']:
+                            letter = self.gesture_classifier.predict_gesture(landmarks)
+                            if letter:
+                                detected_result = letter
+                                break
                 
                 # Actualizar interfaz
-                self.update_ui(processed_frame, detected_letter)
+                self.update_ui(processed_frame, detected_result, hands_data)
                 
             except Exception as e:
                 print(f"Error en detección: {e}")
                 continue
     
-    def update_ui(self, frame, detected_letter):
-        """Actualiza la interfaz con el frame y la letra detectada"""
+    def update_ui(self, frame, detected_result, hands_data):
+        """Actualiza la interfaz con el frame y el resultado detectado (letra o sílaba)"""
         try:
             # Convertir frame para tkinter
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -325,22 +462,117 @@ class MainWindow:
             self.video_label.configure(image=frame_tk)
             self.video_label.image = frame_tk
             
-            # Actualizar letra detectada y estadísticas
-            if detected_letter and detected_letter != self.detected_letter:
-                self.detected_letter = detected_letter
-                self.letter_var.set(detected_letter)
-                self.detection_count += 1
-                self.detection_counter_var.set(f"Detecciones: {self.detection_count}")
-            elif not detected_letter:
-                self.letter_var.set("-")
+            # Lógica de auto-agregado según el modo
+            if self.auto_add_enabled and detected_result:
+                self.handle_auto_add_logic(detected_result)
             
-            # Actualizar confianza
-            confidence = self.gesture_classifier.get_detection_confidence()
-            self.confidence_var.set(confidence * 100)
-            self.confidence_label.config(text=f"{confidence*100:.1f}%")
-        
+            # Actualizar display según el modo
+            if self.detection_mode == "syllables":
+                self.update_syllable_display(detected_result, hands_data)
+            else:
+                self.update_letter_display(detected_result)
+            
         except Exception as e:
             print(f"Error actualizando UI: {e}")
+    
+    def update_letter_display(self, detected_letter):
+        """Actualiza display para modo letras"""
+        if detected_letter and detected_letter != self.detected_letter:
+            self.detected_letter = detected_letter
+            self.letter_var.set(detected_letter)
+            self.detection_count += 1
+            self.detection_counter_var.set(f"Detecciones: {self.detection_count}")
+        elif not detected_letter:
+            self.letter_var.set("-")
+        
+        # Actualizar confianza
+        confidence = self.gesture_classifier.get_detection_confidence()
+        self.confidence_var.set(confidence * 100)
+        self.confidence_label.config(text=f"{confidence*100:.1f}%")
+    
+    def update_syllable_display(self, detected_syllable, hands_data):
+        """Actualiza display para modo sílabas"""
+        if detected_syllable and detected_syllable != self.detected_syllable:
+            self.detected_syllable = detected_syllable
+            self.letter_var.set(detected_syllable)  # Usar el mismo display
+            self.detection_count += 1
+            self.detection_counter_var.set(f"Sílabas: {self.detection_count}")
+        elif not detected_syllable:
+            # Mostrar estado de las manos
+            left_status = "✓" if hands_data['left'] else "✗"
+            right_status = "✓" if hands_data['right'] else "✗"
+            self.letter_var.set(f"L:{left_status} R:{right_status}")
+        
+        # Actualizar confianza
+        confidence = self.syllable_classifier.get_detection_confidence()
+        self.confidence_var.set(confidence * 100)
+        self.confidence_label.config(text=f"{confidence*100:.1f}%")
+    
+    def handle_auto_add_logic(self, detected_letter):
+        """Maneja la lógica de auto-agregado de letras"""
+        # Reducir cooldown si está activo
+        if self.cooldown_count > 0:
+            self.cooldown_count -= 1
+            return
+        
+        if detected_letter and detected_letter != "-":
+            # Resetear contador de no detección
+            self.no_detection_count = 0
+            
+            # Si es la misma letra que la anterior, incrementar contador
+            if detected_letter == self.last_stable_letter:
+                self.stable_letter_count += 1
+            else:
+                # Nueva letra detectada, reiniciar contador
+                self.last_stable_letter = detected_letter
+                self.stable_letter_count = 1
+            
+            # Si la letra ha sido estable por suficiente tiempo
+            if (self.stable_letter_count >= self.auto_add_threshold and 
+                detected_letter != self.last_added_letter):
+                
+                # Agregar la letra automáticamente
+                self.auto_add_letter(detected_letter)
+                
+                # Resetear contadores y activar cooldown
+                self.last_added_letter = detected_letter
+                self.stable_letter_count = 0
+                self.cooldown_count = self.cooldown_threshold
+                
+        else:
+            # No hay letra detectada
+            self.stable_letter_count = 0
+            
+            # Contar frames sin detección para auto-espacio
+            if self.auto_space_enabled:
+                self.no_detection_count += 1
+                
+                # Si ha pasado suficiente tiempo sin detección, agregar espacio
+                if self.no_detection_count >= self.auto_space_threshold:
+                    self.auto_add_space()
+                    self.no_detection_count = 0  # Resetear contador
+    
+    def auto_add_space(self):
+        """Agrega automáticamente un espacio"""
+        # Verificar que el último caracter no sea ya un espacio
+        current_text = self.word_text.get(1.0, tk.END)
+        if current_text and current_text[-2] != " ":  # -2 porque el último es \n
+            self.word_text.insert(tk.END, " ")
+            self.word_text.see(tk.END)
+            self.status_var.set("Auto-espacio agregado")
+    
+    def auto_add_letter(self, letter):
+        """Agrega automáticamente una letra al texto"""
+        if letter and letter != "-":
+            self.word_text.insert(tk.END, letter)
+            self.word_text.see(tk.END)
+            
+            # Actualizar status con indicación visual
+            self.status_var.set(f"Auto-agregado: {letter}")
+            
+            # Opcional: efecto visual breve
+            self.root.after(1000, lambda: self.status_var.set("Detectando gestos...") 
+                           if self.is_running else None)
     
     def add_letter_to_word(self):
         """Agrega la letra detectada a la palabra"""
