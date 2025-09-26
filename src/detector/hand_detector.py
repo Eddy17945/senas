@@ -3,7 +3,7 @@
 import cv2
 import mediapipe as mp
 import numpy as np
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Union
 
 class HandDetector:
     def __init__(self, 
