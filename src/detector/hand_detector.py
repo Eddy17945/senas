@@ -1,9 +1,9 @@
-# src/detector/hand_detector.py (Versión MediaPipe)
+# src/detector/hand_detector.py
 
 import cv2
 import mediapipe as mp
 import numpy as np
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 
 class HandDetector:
     def __init__(self, 
@@ -168,7 +168,7 @@ class HandDetector:
         
         return sum(fingers)
     
-    def get_finger_positions(self, landmarks: List) -> dict:
+    def get_finger_positions(self, landmarks: List) -> Dict:
         """
         Obtiene las posiciones específicas de cada dedo
         """
@@ -220,7 +220,7 @@ class HandDetector:
         else:
             return "up"
     
-    def calculate_gesture_features(self, landmarks: List) -> dict:
+    def calculate_gesture_features(self, landmarks: List) -> Dict:
         """
         Calcula características avanzadas del gesto para clasificación
         """

@@ -2,7 +2,7 @@
 
 import numpy as np
 import cv2
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any, Unio
 try:
     from sklearn.ensemble import RandomForestClassifier
     HAS_SKLEARN = True
