@@ -1,2 +1,4 @@
 2025-09-27 15:35:48,538 - comtypes.client._code_cache - INFO - Imported existing <module 'comtypes.gen' from 'C:\\Users\\melis\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\comtypes\\gen\\__init__.py'>
 2025-09-27 15:35:48,539 - comtypes.client._code_cache - INFO - Using writeable comtypes cache directory: 'C:\Users\melis\AppData\Local\Programs\Python\Python311\Lib\site-packages\comtypes\gen'
+2025-09-27 19:36:37,891 - comtypes.client._code_cache - INFO - Imported existing <module 'comtypes.gen' from 'C:\\Users\\melis\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\comtypes\\gen\\__init__.py'>
+2025-09-27 19:36:37,896 - comtypes.client._code_cache - INFO - Using writeable comtypes cache directory: 'C:\Users\melis\AppData\Local\Programs\Python\Python311\Lib\site-packages\comtypes\gen'
