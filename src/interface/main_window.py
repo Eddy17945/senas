@@ -10,6 +10,8 @@ from typing import Optional
 from ..detector.hand_detector import HandDetector
 from ..detector.gesture_classifier import GestureClassifier
 from ..detector.syllable_classifier import SyllableClassifier
+from ..detector.advanced_hand_detector import AdvancedHandDetector
+from ..detector.gesture_calibrator import GestureCalibrator
 from ..utils.audio_manager import AudioManager
 from ..config.settings import Config
 
@@ -20,15 +22,26 @@ class MainWindow:
         self.root.geometry(f"{Config.WINDOW_WIDTH}x{Config.WINDOW_HEIGHT}")
         self.root.configure(bg='#2C3E50')
         
-        # Componentes principales
-        self.hand_detector = HandDetector(
-            max_num_hands=Config.MAX_NUM_HANDS,
-            min_detection_confidence=Config.MIN_DETECTION_CONFIDENCE,
-            min_tracking_confidence=Config.MIN_TRACKING_CONFIDENCE
-        )
+        # Componentes principales (versión mejorada)
+        self.use_advanced_detector = True  # Flag para usar detector avanzado
+        
+        if self.use_advanced_detector:
+            self.hand_detector = AdvancedHandDetector(
+                max_num_hands=Config.MAX_NUM_HANDS,
+                min_detection_confidence=Config.MIN_DETECTION_CONFIDENCE,
+                min_tracking_confidence=Config.MIN_TRACKING_CONFIDENCE
+            )
+        else:
+            self.hand_detector = HandDetector(
+                max_num_hands=Config.MAX_NUM_HANDS,
+                min_detection_confidence=Config.MIN_DETECTION_CONFIDENCE,
+                min_tracking_confidence=Config.MIN_TRACKING_CONFIDENCE
+            )
+            
         self.gesture_classifier = GestureClassifier()
         self.gesture_classifier.create_simple_classifier()
-        self.syllable_classifier = SyllableClassifier()  # Nuevo clasificador
+        self.syllable_classifier = SyllableClassifier()
+        self.gesture_calibrator = GestureCalibrator()  # Nuevo calibrador
         self.audio_manager = AudioManager(
             rate=Config.VOICE_RATE,
             volume=Config.VOICE_VOLUME
@@ -257,6 +270,14 @@ class MainWindow:
         counter_label = ttk.Label(status_frame, textvariable=self.detection_counter_var)
         counter_label.pack(side=tk.RIGHT)
         
+        # Nuevo: Botón para gestión de precisión
+        precision_button = ttk.Button(
+            status_frame,
+            text="Gestión de Precisión",
+            command=self.show_precision_manager
+        )
+        precision_button.pack(side=tk.RIGHT, padx=(0, 10))
+        
         # Nuevo: Botón para mostrar galería de referencias
         gallery_button = ttk.Button(
             status_frame,
@@ -313,6 +334,15 @@ class MainWindow:
         """Actualiza la sensibilidad del clasificador"""
         sensitivity = int(float(value))
         self.gesture_classifier.set_stability_threshold(sensitivity)
+    
+    def show_precision_manager(self):
+        """Muestra la ventana de gestión de precisión"""
+        try:
+            from .precision_manager import PrecisionManager
+            manager = PrecisionManager(self, self.gesture_calibrator)
+            manager.show_precision_window()
+        except ImportError as e:
+            messagebox.showerror("Error", f"No se pudo cargar el gestor de precisión: {e}")
     
     def show_reference_gallery(self):
         """Muestra la galería de referencias"""
@@ -441,6 +471,11 @@ class MainWindow:
                             letter = self.gesture_classifier.predict_gesture(landmarks)
                             if letter:
                                 detected_result = letter
+                                
+                                # Recolectar muestra para calibración automática
+                                confidence = hands_data.get('confidence', {}).get('left', 0) or \
+                                           hands_data.get('confidence', {}).get('right', 0)
+                                self.gesture_calibrator.collect_sample(letter, landmarks, confidence)
                                 break
                 
                 # Actualizar interfaz
