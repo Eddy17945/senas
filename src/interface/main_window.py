@@ -39,7 +39,7 @@ class MainWindow:
             )
             
         self.gesture_classifier = GestureClassifier()
-        self.gesture_classifier.create_simple_classifier()
+        # self.gesture_classifier.create_simple_classifier()
         self.syllable_classifier = SyllableClassifier()
         self.gesture_calibrator = GestureCalibrator()  # Nuevo calibrador
         self.audio_manager = AudioManager(

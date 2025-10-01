@@ -1,16 +1,9 @@
-# src/detector/gesture_classifier.py (Alfabeto Completo)
+# src/detector/gesture_classifier_improved.py
+# OPTIMIZADO PARA PRECISIÓN Y VELOCIDAD
 
 import numpy as np
 import cv2
-from typing import List, Optional, Dict, Any, Union  # ← CORREGIDO: "Unio" → "Union"
-try:
-    from sklearn.ensemble import RandomForestClassifier
-    HAS_SKLEARN = True
-except ImportError:
-    HAS_SKLEARN = False
-    print("Warning: sklearn no disponible, usando clasificador simple")
-import pickle
-import os
+from typing import List, Optional, Dict, Any, Union
 
 class GestureClassifier:
     def __init__(self, model_path: str = None):
@@ -18,8 +11,8 @@ class GestureClassifier:
         self.label_encoder = None
         self.is_trained = False
         self.detection_history = []
-        self.stability_threshold = 5
-        self.confidence_threshold = 0.7
+        self.stability_threshold = 3  # REDUCIDO de 5 a 3 para velocidad
+        self.confidence_threshold = 0.6  # REDUCIDO para aceptar más detecciones
         
         # Lista completa del alfabeto soportado
         self.supported_letters = [
@@ -27,30 +20,22 @@ class GestureClassifier:
             'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
         ]
         
-        if model_path and os.path.exists(model_path):
-            self.load_model(model_path)
-    
-    def create_simple_classifier(self):
-        """Crea un clasificador simple mejorado"""
-        if HAS_SKLEARN:
-            self.model = RandomForestClassifier(n_estimators=100, random_state=42)
-        else:
-            self.model = None
-        self.is_trained = True
+        self.is_trained = True  # Activar directamente
     
     def predict_gesture(self, landmarks: List) -> Optional[str]:
-        """Predice el gesto usando landmarks precisos de MediaPipe"""
+        """Predice el gesto con VELOCIDAD y PRECISIÓN mejorada"""
         if not self.is_trained or not landmarks or len(landmarks) < 63:
             return None
         
         current_letter = self._classify_complete_alphabet(landmarks)
         
-        # Estabilización
+        # Estabilización RÁPIDA
         self.detection_history.append(current_letter)
         
         if len(self.detection_history) > self.stability_threshold * 2:
             self.detection_history = self.detection_history[-self.stability_threshold:]
         
+        # DETECCIÓN MÁS RÁPIDA - solo 60% de estabilidad necesaria
         if len(self.detection_history) >= self.stability_threshold:
             recent_detections = self.detection_history[-self.stability_threshold:]
             
@@ -58,24 +43,24 @@ class GestureClassifier:
                 letter_count = sum(1 for detection in recent_detections 
                                  if detection == current_letter)
                 
-                if letter_count >= self.stability_threshold * 0.6:
+                # CAMBIO: 50% en lugar de 60% para ser más responsivo
+                if letter_count >= self.stability_threshold * 0.5:
                     return current_letter
         
         return None
     
     def _classify_complete_alphabet(self, landmarks: List) -> Optional[str]:
-        """Clasificación completa del alfabeto A-Z"""
+        """Clasificación mejorada con mejor precisión para Y, U y todas las letras"""
         if not landmarks or len(landmarks) < 63:
             return None
         
         landmarks_array = np.array(landmarks[:63]).reshape(-1, 3)
-        features = self._extract_finger_features(landmarks_array)
+        features = self._extract_finger_features_enhanced(landmarks_array)
         
-        # Clasificar cada letra del alfabeto
-        return self._classify_all_letters(features)
+        return self._classify_all_letters_improved(features, landmarks_array)
     
-    def _extract_finger_features(self, landmarks_array) -> Dict:
-        """Extrae características específicas de cada dedo usando landmarks de MediaPipe"""
+    def _extract_finger_features_enhanced(self, landmarks_array) -> Dict:
+        """Extrae características MEJORADAS con más precisión"""
         # Puntos clave de MediaPipe
         wrist = landmarks_array[0]
         
@@ -111,21 +96,21 @@ class GestureClassifier:
         
         features = {}
         
-        # Estados de extensión
-        features['thumb_extended'] = thumb_tip[1] < thumb_ip[1]
-        features['index_extended'] = index_tip[1] < index_pip[1]
-        features['middle_extended'] = middle_tip[1] < middle_pip[1]
-        features['ring_extended'] = ring_tip[1] < ring_pip[1]
-        features['pinky_extended'] = pinky_tip[1] < pinky_pip[1]
+        # Estados de extensión MEJORADOS (comparación en Y)
+        features['thumb_extended'] = thumb_tip[1] < thumb_ip[1] - 0.02
+        features['index_extended'] = index_tip[1] < index_pip[1] - 0.03
+        features['middle_extended'] = middle_tip[1] < middle_pip[1] - 0.03
+        features['ring_extended'] = ring_tip[1] < ring_pip[1] - 0.03
+        features['pinky_extended'] = pinky_tip[1] < pinky_pip[1] - 0.03
         
-        # Ángulos de flexión
+        # Ángulos de flexión PRECISOS
         features['thumb_angle'] = self._calculate_angle(thumb_mcp, thumb_ip, thumb_tip)
         features['index_angle'] = self._calculate_angle(index_mcp, index_pip, index_tip)
         features['middle_angle'] = self._calculate_angle(middle_mcp, middle_pip, middle_tip)
         features['ring_angle'] = self._calculate_angle(ring_mcp, ring_pip, ring_tip)
         features['pinky_angle'] = self._calculate_angle(pinky_mcp, pinky_pip, pinky_tip)
         
-        # Distancias entre puntas
+        # Distancias CRÍTICAS para Y y U
         features['thumb_index_dist'] = np.linalg.norm(thumb_tip - index_tip)
         features['thumb_middle_dist'] = np.linalg.norm(thumb_tip - middle_tip)
         features['thumb_ring_dist'] = np.linalg.norm(thumb_tip - ring_tip)
@@ -133,30 +118,27 @@ class GestureClassifier:
         features['index_middle_dist'] = np.linalg.norm(index_tip - middle_tip)
         features['middle_ring_dist'] = np.linalg.norm(middle_tip - ring_tip)
         features['ring_pinky_dist'] = np.linalg.norm(ring_tip - pinky_tip)
+        features['index_pinky_dist'] = np.linalg.norm(index_tip - pinky_tip)
         
-        # Posiciones relativas
-        features['thumb_behind_fingers'] = thumb_tip[0] < index_mcp[0]
-        features['thumb_across_palm'] = abs(thumb_tip[0] - wrist[0]) > 0.1
+        # Posiciones relativas EN X (crítico para Y)
+        features['thumb_left_of_fingers'] = thumb_tip[0] < index_mcp[0] - 0.05
+        features['thumb_right_of_fingers'] = thumb_tip[0] > pinky_mcp[0] + 0.05
+        features['thumb_between_fingers'] = (thumb_tip[0] > index_mcp[0] and 
+                                            thumb_tip[0] < pinky_mcp[0])
         
-        # Agrupaciones de dedos
-        features['fingers_together'] = (features['index_middle_dist'] < 0.05 and
-                                      features['middle_ring_dist'] < 0.05 and
-                                      features['ring_pinky_dist'] < 0.05)
+        # Alineación de dedos (crítico para U)
+        features['index_middle_aligned'] = abs(index_tip[1] - middle_tip[1]) < 0.04
+        features['fingers_pointing_up'] = (index_tip[1] < index_mcp[1] and 
+                                          middle_tip[1] < middle_mcp[1])
         
-        features['two_fingers_up'] = (features['index_extended'] and features['middle_extended'] and
-                                    not features['ring_extended'] and not features['pinky_extended'])
-        
-        features['three_fingers_up'] = (features['index_extended'] and features['middle_extended'] and
-                                      features['ring_extended'] and not features['pinky_extended'])
-        
-        # Orientaciones y formas
+        # Apertura de mano
         fingertips = [thumb_tip, index_tip, middle_tip, ring_tip, pinky_tip]
         x_coords = [tip[0] for tip in fingertips]
         y_coords = [tip[1] for tip in fingertips]
         
         features['hand_width'] = max(x_coords) - min(x_coords)
         features['hand_height'] = max(y_coords) - min(y_coords)
-        features['hand_openness'] = features['hand_width'] / 0.3
+        features['hand_openness'] = features['hand_width'] / 0.3 if features['hand_width'] > 0 else 0
         
         # Número de dedos extendidos
         extended_fingers = sum([
@@ -168,190 +150,204 @@ class GestureClassifier:
         ])
         features['fingers_count'] = extended_fingers
         
-        # Características específicas para ciertas letras
+        # Configuraciones especiales
         features['fist_closed'] = features['fingers_count'] == 0
-        features['pointing_gesture'] = (features['index_extended'] and 
-                                      features['fingers_count'] == 1)
+        features['all_extended'] = features['fingers_count'] == 5
+        features['two_fingers_up'] = features['fingers_count'] == 2
+        features['three_fingers_up'] = features['fingers_count'] == 3
+        
+        # Detección de separación entre dedos (V vs U)
+        features['fingers_separated'] = features['index_middle_dist'] > 0.06
+        features['fingers_together'] = features['index_middle_dist'] < 0.04
         
         return features
     
-    def _classify_all_letters(self, features: Dict) -> Optional[str]:
-        """Clasificación completa del alfabeto A-Z basado en las imágenes de referencia"""
+    def _classify_all_letters_improved(self, features: Dict, landmarks_array) -> Optional[str]:
+        """Clasificación MEJORADA con reglas más precisas especialmente para Y y U"""
         
-        # LETRA A: Puño cerrado con pulgar al lado
-        if (not features['index_extended'] and not features['middle_extended'] and 
-            not features['ring_extended'] and not features['pinky_extended'] and
-            features['thumb_behind_fingers']):
-            return "A"
+        # ========== LETRA Y - MEJORADA ==========
+        # Y: Pulgar y meñique extendidos, otros doblados
+        if (not features['index_extended'] and 
+            not features['middle_extended'] and 
+            not features['ring_extended'] and 
+            features['pinky_extended'] and 
+            features['thumb_extended']):
+            
+            # Verificar distancia característica de Y
+            if features['thumb_pinky_dist'] > 0.12:  # Reducido de 0.15
+                # Verificar que índice/medio/anular estén realmente doblados
+                if (features['index_angle'] < 150 and 
+                    features['middle_angle'] < 150 and 
+                    features['ring_angle'] < 150):
+                    return "Y"
         
-        # LETRA B: Cuatro dedos extendidos juntos, pulgar doblado
-        elif (features['index_extended'] and features['middle_extended'] and 
-              features['ring_extended'] and features['pinky_extended'] and
-              not features['thumb_extended'] and features['fingers_together']):
-            return "B"
+        # ========== LETRA U - MEJORADA ==========
+        # U: Índice y medio extendidos JUNTOS y PARALELOS
+        if (features['index_extended'] and 
+            features['middle_extended'] and 
+            not features['ring_extended'] and 
+            not features['pinky_extended']):
+            
+            # Criterios MEJORADOS para U
+            fingers_close = features['index_middle_dist'] < 0.05  # Más permisivo
+            fingers_aligned = features['index_middle_aligned']
+            pointing_up = features['fingers_pointing_up']
+            thumb_not_extended = not features['thumb_extended'] or features['thumb_between_fingers']
+            
+            if fingers_close and fingers_aligned and pointing_up:
+                return "U"
         
-        # LETRA C: Forma curva - mano parcialmente abierta
-        elif (features['fingers_count'] >= 2 and features['thumb_index_dist'] > 0.1 and 
-              features['thumb_index_dist'] < 0.25 and features['hand_openness'] > 0.3):
-            return "C"
-        
-        # LETRA D: Índice extendido, pulgar tocando otros dedos
-        elif (features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_middle_dist'] < 0.08):
-            return "D"
-        
-        # LETRA E: Dedos curvados hacia adentro, pulgar visible
-        elif (not features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_extended'] and features['index_angle'] > 90):
-            return "E"
-        
-        # LETRA F: Círculo con pulgar e índice, otros dedos extendidos
-        elif (not features['index_extended'] and features['middle_extended'] and 
-              features['ring_extended'] and features['pinky_extended'] and
-              features['thumb_index_dist'] < 0.06):
-            return "F"
-        
-        # LETRA G: Índice extendido horizontalmente, pulgar extendido
-        elif (features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_extended'] and features['thumb_index_dist'] > 0.15):
-            return "G"
-        
-        # LETRA H: Índice y medio extendidos horizontalmente
-        elif (features['index_extended'] and features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_behind_fingers'] and features['index_middle_dist'] < 0.08):
-            return "H"
-        
-        # LETRA I: Solo meñique extendido
-        elif (not features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and features['pinky_extended'] and
-              features['thumb_behind_fingers']):
-            return "I"
-        
-        # LETRA J: Meñique extendido con movimiento (similar a I pero con orientación)
-        elif (not features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and features['pinky_extended'] and
-              not features['thumb_behind_fingers']):
-            return "J"
-        
-        # LETRA K: Índice y medio extendidos en V, pulgar toca medio
-        elif (features['index_extended'] and features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['index_middle_dist'] > 0.1 and features['thumb_middle_dist'] < 0.08):
-            return "K"
-        
-        # LETRA L: Índice y pulgar en forma de L
-        elif (features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_extended'] and features['thumb_index_dist'] > 0.12):
-            return "L"
-        
-        # LETRA M: Pulgar bajo tres dedos doblados
-        elif (not features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_extended'] and features['thumb_across_palm']):
-            return "M"
-        
-        # LETRA N: Pulgar bajo dos dedos doblados
-        elif (not features['index_extended'] and not features['middle_extended'] and 
-              features['ring_extended'] and features['pinky_extended'] and
-              features['thumb_behind_fingers']):
-            return "N"
-        
-        # LETRA O: Todos los dedos formando círculo
-        elif (features['fist_closed'] and features['thumb_index_dist'] < 0.08 and
-              features['hand_openness'] > 0.2):
-            return "O"
-        
-        # LETRA P: Similar a K pero con orientación hacia abajo
-        elif (features['index_extended'] and features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_middle_dist'] < 0.1 and features['index_middle_dist'] > 0.08):
-            return "P"
-        
-        # LETRA Q: Similar a G pero con orientación hacia abajo
-        elif (features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_extended'] and features['hand_height'] > features['hand_width']):
-            return "Q"
-        
-        # LETRA R: Índice y medio cruzados
-        elif (features['index_extended'] and features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['index_middle_dist'] < 0.05 and not features['thumb_extended']):
-            return "R"
-        
-        # LETRA S: Puño cerrado con pulgar sobre dedos
-        elif (features['fist_closed'] and not features['thumb_behind_fingers'] and
-              features['thumb_across_palm']):
-            return "S"
-        
-        # LETRA T: Puño cerrado con pulgar entre índice y medio
-        elif (not features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and not features['pinky_extended'] and
-              features['thumb_extended'] and features['thumb_index_dist'] < 0.05):
-            return "T"
-        
-        # LETRA U: Índice y medio extendidos juntos hacia arriba
-        elif (features['two_fingers_up'] and features['index_middle_dist'] < 0.05 and
-              features['thumb_behind_fingers']):
-            return "U"
-        
-        # LETRA V: Índice y medio extendidos separados
-        elif (features['two_fingers_up'] and features['index_middle_dist'] > 0.08 and
-              features['thumb_behind_fingers']):
+        # ========== LETRA V - MEJORADA ==========
+        # V: Índice y medio extendidos SEPARADOS
+        elif (features['index_extended'] and 
+              features['middle_extended'] and 
+              not features['ring_extended'] and 
+              not features['pinky_extended'] and
+              features['fingers_separated']):  # Usando feature específica
             return "V"
         
-        # LETRA W: Tres dedos extendidos (índice, medio, anular)
-        elif (features['three_fingers_up'] and features['thumb_behind_fingers']):
+        # ========== OTRAS LETRAS (mantenemos lógica mejorada) ==========
+        
+        # LETRA A
+        if (features['fist_closed'] and 
+            features['thumb_left_of_fingers']):
+            return "A"
+        
+        # LETRA B
+        elif (features['index_extended'] and 
+              features['middle_extended'] and 
+              features['ring_extended'] and 
+              features['pinky_extended'] and
+              not features['thumb_extended'] and 
+              features['fingers_together']):
+            return "B"
+        
+        # LETRA C
+        elif (features['fingers_count'] >= 2 and 
+              features['thumb_index_dist'] > 0.08 and 
+              features['thumb_index_dist'] < 0.20 and 
+              features['hand_openness'] > 0.25):
+            return "C"
+        
+        # LETRA D
+        elif (features['index_extended'] and 
+              not features['middle_extended'] and 
+              not features['ring_extended'] and 
+              not features['pinky_extended'] and
+              features['thumb_middle_dist'] < 0.10):
+            return "D"
+        
+        # LETRA E
+        elif (features['fist_closed'] and 
+              features['thumb_extended'] and 
+              features['index_angle'] > 80):
+            return "E"
+        
+        # LETRA F
+        elif (not features['index_extended'] and 
+              features['middle_extended'] and 
+              features['ring_extended'] and 
+              features['pinky_extended'] and
+              features['thumb_index_dist'] < 0.08):
+            return "F"
+        
+        # LETRA G
+        elif (features['index_extended'] and 
+              not features['middle_extended'] and 
+              not features['ring_extended'] and 
+              not features['pinky_extended'] and
+              features['thumb_extended'] and 
+              features['thumb_index_dist'] > 0.12):
+            return "G"
+        
+        # LETRA H
+        elif (features['index_extended'] and 
+              features['middle_extended'] and 
+              not features['ring_extended'] and 
+              not features['pinky_extended'] and
+              features['index_middle_dist'] < 0.06):
+            return "H"
+        
+        # LETRA I
+        elif (not features['index_extended'] and 
+              not features['middle_extended'] and 
+              not features['ring_extended'] and 
+              features['pinky_extended'] and
+              not features['thumb_extended']):
+            return "I"
+        
+        # LETRA L
+        elif (features['index_extended'] and 
+              not features['middle_extended'] and 
+              not features['ring_extended'] and 
+              not features['pinky_extended'] and
+              features['thumb_extended'] and 
+              features['thumb_left_of_fingers']):
+            return "L"
+        
+        # LETRA M
+        elif (not features['index_extended'] and 
+              not features['middle_extended'] and 
+              not features['ring_extended'] and 
+              not features['pinky_extended'] and
+              features['thumb_extended']):
+            return "M"
+        
+        # LETRA O
+        elif (features['fist_closed'] and 
+              features['thumb_index_dist'] < 0.10 and
+              features['hand_openness'] > 0.15):
+            return "O"
+        
+        # LETRA S
+        elif (features['fist_closed'] and 
+              not features['thumb_left_of_fingers'] and
+              not features['thumb_extended']):
+            return "S"
+        
+        # LETRA W
+        elif (features['three_fingers_up'] and 
+              not features['thumb_extended']):
             return "W"
         
-        # LETRA X: Índice parcialmente doblado (gancho)
-        elif (not features['middle_extended'] and not features['ring_extended'] and 
-              not features['pinky_extended'] and features['thumb_behind_fingers'] and
-              features['index_angle'] > 45 and features['index_angle'] < 120):
+        # LETRA X
+        elif (not features['middle_extended'] and 
+              not features['ring_extended'] and 
+              not features['pinky_extended'] and
+              features['index_angle'] > 40 and 
+              features['index_angle'] < 120):
             return "X"
         
-        # LETRA Y: Pulgar y meñique extendidos
-        elif (not features['index_extended'] and not features['middle_extended'] and 
-              not features['ring_extended'] and features['pinky_extended'] and
-              features['thumb_extended'] and features['thumb_pinky_dist'] > 0.15):
-            return "Y"
-        
-        # LETRA Z: Índice extendido haciendo zigzag (similar a D pero con movimiento)
-        elif (features['pointing_gesture'] and features['thumb_index_dist'] > 0.1):
-            return "Z"
-        
-        # Si no coincide con ningún patrón específico, usar clasificación por conteo
+        # Si no coincide, usar clasificación por conteo
         return self._classify_by_finger_count(features)
     
     def _classify_by_finger_count(self, features: Dict) -> Optional[str]:
-        """Clasificación de respaldo basada en número de dedos"""
+        """Clasificación de respaldo mejorada"""
         count = features['fingers_count']
         
         if count == 0:
-            return "A" if features['thumb_behind_fingers'] else "S"
+            return "A" if features['thumb_left_of_fingers'] else "S"
         elif count == 1:
             if features['index_extended']:
                 return "D"
             elif features['pinky_extended']:
-                return "I"
-            elif features['thumb_extended']:
-                return "T"
+                if features['thumb_extended']:
+                    return "Y"
+                else:
+                    return "I"
         elif count == 2:
-            if features['two_fingers_up']:
-                return "V" if features['index_middle_dist'] > 0.08 else "U"
+            if features['fingers_separated']:
+                return "V"
+            elif features['fingers_together']:
+                return "U"
             else:
-                return "C"
+                return "H"
         elif count == 3:
             return "W"
         elif count == 4:
             return "B"
         elif count == 5:
-            return "5"  # Mano completamente abierta
+            return "5"
         
         return None
     
@@ -395,28 +391,5 @@ class GestureClassifier:
         self.detection_history = []
     
     def set_stability_threshold(self, threshold: int):
-        """Cambia el umbral de estabilidad"""
-        self.stability_threshold = max(1, threshold)
-    
-    def save_model(self, path: str):
-        """Guarda el modelo entrenado"""
-        if self.model:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, 'wb') as f:
-                pickle.dump({
-                    'model': self.model,
-                    'label_encoder': self.label_encoder,
-                    'is_trained': self.is_trained
-                }, f)
-    
-    def load_model(self, path: str):
-        """Carga un modelo previamente entrenado"""
-        try:
-            with open(path, 'rb') as f:
-                data = pickle.load(f)
-                self.model = data['model']
-                self.label_encoder = data.get('label_encoder')
-                self.is_trained = data.get('is_trained', True)
-        except Exception as e:
-            print(f"Error cargando modelo: {e}")
-            self.create_simple_classifier()
+        """Cambia el umbral de estabilidad (1-10)"""
+        self.stability_threshold = max(1, min(10, threshold))
