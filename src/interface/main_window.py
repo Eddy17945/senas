@@ -37,6 +37,10 @@ class MainWindow:
         self.root.title("🤟 " + Config.WINDOW_TITLE)
         self.root.geometry(f"{Config.WINDOW_WIDTH}x{Config.WINDOW_HEIGHT}")
         
+        # Permitir redimensionar pero con tamaño mínimo
+        self.root.minsize(1000, 600)  # Tamaño mínimo para ver todo
+        self.root.resizable(True, True)  # Permitir redimensionar
+        
         # Configurar tema de colores
         self.setup_styles()
         self.root.configure(bg=self.COLORS['bg_light'])
@@ -366,7 +370,9 @@ class MainWindow:
             text="Presiona 'Iniciar' para comenzar",
             bg='#F1F5F9',
             fg=self.COLORS['text_dark'],
-            font=('Segoe UI', 12)
+            font=('Segoe UI', 12),
+            width=80,   # FIJO: ancho en caracteres
+            height=30   # FIJO: alto en líneas
         )
         self.video_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
         
@@ -860,7 +866,32 @@ class MainWindow:
     
     def update_ui(self, frame, detected_result, hands_data):
         try:
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Obtener tamaño actual del label
+            label_width = self.video_label.winfo_width()
+            label_height = self.video_label.winfo_height()
+            
+            # Si el label aún no tiene tamaño, usar valores por defecto
+            if label_width <= 1:
+                label_width = 640
+                label_height = 480
+            
+            # Calcular proporción del frame
+            frame_height, frame_width = frame.shape[:2]
+            aspect_ratio = frame_width / frame_height
+            
+            # Ajustar al tamaño del label manteniendo proporción
+            if label_width / label_height > aspect_ratio:
+                new_height = label_height
+                new_width = int(new_height * aspect_ratio)
+            else:
+                new_width = label_width
+                new_height = int(new_width / aspect_ratio)
+            
+            # Redimensionar el frame
+            frame_resized = cv2.resize(frame, (new_width, new_height), 
+                                      interpolation=cv2.INTER_AREA)
+            
+            frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
             frame_pil = Image.fromarray(frame_rgb)
             frame_tk = ImageTk.PhotoImage(frame_pil)
             
