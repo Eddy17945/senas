@@ -1,4 +1,5 @@
-# src/interface/main_window.py (Versión Estable con Mejoras)
+# src/interface/main_window.py
+# VERSIÓN CON DISEÑO MODERNO Y COLORES
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -16,14 +17,32 @@ from ..utils.audio_manager import AudioManager
 from ..config.settings import Config
 
 class MainWindow:
+    # PALETA DE COLORES MODERNA
+    COLORS = {
+        'primary': '#2563EB',      # Azul principal
+        'secondary': '#3B82F6',    # Azul claro
+        'accent': '#10B981',       # Verde éxito
+        'danger': '#EF4444',       # Rojo
+        'warning': '#F59E0B',      # Amarillo/Naranja
+        'bg_dark': '#1E293B',      # Fondo oscuro
+        'bg_light': '#F8FAFC',     # Fondo claro
+        'text_dark': '#0F172A',    # Texto oscuro
+        'text_light': '#F8FAFC',   # Texto claro
+        'border': '#CBD5E1',       # Bordes
+        'hover': '#1E40AF',        # Hover azul oscuro
+    }
+    
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title(Config.WINDOW_TITLE)
+        self.root.title("🤟 " + Config.WINDOW_TITLE)
         self.root.geometry(f"{Config.WINDOW_WIDTH}x{Config.WINDOW_HEIGHT}")
-        self.root.configure(bg='#2C3E50')
         
-        # Componentes principales (versión mejorada)
-        self.use_advanced_detector = True  # Flag para usar detector avanzado
+        # Configurar tema de colores
+        self.setup_styles()
+        self.root.configure(bg=self.COLORS['bg_light'])
+        
+        # Componentes principales
+        self.use_advanced_detector = True
         
         if self.use_advanced_detector:
             self.hand_detector = AdvancedHandDetector(
@@ -39,9 +58,8 @@ class MainWindow:
             )
             
         self.gesture_classifier = GestureClassifier()
-        # self.gesture_classifier.create_simple_classifier()
         self.syllable_classifier = SyllableClassifier()
-        self.gesture_calibrator = GestureCalibrator()  # Nuevo calibrador
+        self.gesture_calibrator = GestureCalibrator()
         self.audio_manager = AudioManager(
             rate=Config.VOICE_RATE,
             volume=Config.VOICE_VOLUME
@@ -52,22 +70,22 @@ class MainWindow:
         self.is_running = False
         self.current_frame = None
         self.detected_letter = ""
-        self.detected_syllable = ""  # Nueva variable para sílabas
-        self.detection_mode = "letters"  # "letters" o "syllables"
+        self.detected_syllable = ""
+        self.detection_mode = "letters"
         self.word_buffer = ""
         self.detection_count = 0
         
-        # Variables para auto-agregado de letras
+        # Variables para auto-agregado
         self.auto_add_enabled = True
         self.last_stable_letter = ""
         self.stable_letter_count = 0
-        self.auto_add_threshold = 15  # Frames necesarios para auto-agregar
+        self.auto_add_threshold = 15
         self.last_added_letter = ""
         self.cooldown_count = 0
-        self.cooldown_threshold = 30  # Frames de espera entre letras
+        self.cooldown_threshold = 30
         self.auto_space_enabled = False
         self.no_detection_count = 0
-        self.auto_space_threshold = 90  # Frames sin detección para auto-espacio
+        self.auto_space_threshold = 90
         
         # Configurar interfaz
         self.setup_ui()
@@ -76,329 +94,698 @@ class MainWindow:
         # Protocolo de cierre
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
     
+    def setup_styles(self):
+        """Configura los estilos personalizados de la interfaz"""
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # Estilo para botones principales
+        style.configure(
+            'Primary.TButton',
+            background=self.COLORS['primary'],
+            foreground='white',
+            borderwidth=0,
+            focuscolor='none',
+            font=('Segoe UI', 10, 'bold'),
+            padding=10
+        )
+        style.map('Primary.TButton',
+                 background=[('active', self.COLORS['hover'])],
+                 foreground=[('active', 'white')])
+        
+        # Estilo para botones de éxito
+        style.configure(
+            'Success.TButton',
+            background=self.COLORS['accent'],
+            foreground='white',
+            borderwidth=0,
+            font=('Segoe UI', 10),
+            padding=8
+        )
+        style.map('Success.TButton',
+                 background=[('active', '#059669')])
+        
+        # Estilo para botones de peligro
+        style.configure(
+            'Danger.TButton',
+            background=self.COLORS['danger'],
+            foreground='white',
+            borderwidth=0,
+            font=('Segoe UI', 10),
+            padding=8
+        )
+        style.map('Danger.TButton',
+                 background=[('active', '#DC2626')])
+        
+        # Estilo para frames
+        style.configure(
+            'Card.TFrame',
+            background='white',
+            relief='flat'
+        )
+        
+        style.configure(
+            'TLabelframe',
+            background='white',
+            borderwidth=2,
+            relief='groove'
+        )
+        style.configure(
+            'TLabelframe.Label',
+            background='white',
+            foreground=self.COLORS['text_dark'],
+            font=('Segoe UI', 11, 'bold')
+        )
+        
+        # Estilo para labels
+        style.configure(
+            'Title.TLabel',
+            background='white',
+            foreground=self.COLORS['primary'],
+            font=('Segoe UI', 14, 'bold')
+        )
+        
+        style.configure(
+            'TLabel',
+            background='white',
+            foreground=self.COLORS['text_dark'],
+            font=('Segoe UI', 10)
+        )
+        
+        # Estilo para radio buttons
+        style.configure(
+            'TRadiobutton',
+            background='white',
+            foreground=self.COLORS['text_dark'],
+            font=('Segoe UI', 9)
+        )
+        
+        # Estilo para checkbuttons
+        style.configure(
+            'TCheckbutton',
+            background='white',
+            foreground=self.COLORS['text_dark'],
+            font=('Segoe UI', 9)
+        )
+    
     def setup_ui(self):
-        """Configura la interfaz de usuario mejorada"""
-        # Frame principal
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        """Configura la interfaz de usuario moderna"""
+        # Frame principal con padding
+        main_frame = tk.Frame(self.root, bg=self.COLORS['bg_light'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # Frame superior - Controles
-        control_frame = ttk.LabelFrame(main_frame, text="Controles", padding="10")
-        control_frame.pack(fill=tk.X, pady=(0, 10))
+        # ========== HEADER - TÍTULO Y CONTROLES PRINCIPALES ==========
+        header_frame = tk.Frame(main_frame, bg='white', relief='raised', bd=2)
+        header_frame.pack(fill=tk.X, pady=(0, 15))
         
-        # Botones de control
-        self.start_button = ttk.Button(
-            control_frame, 
-            text="Iniciar Detección", 
+        # Título principal
+        title_label = tk.Label(
+            header_frame,
+            text="🤟 Traductor de Lenguaje de Señas",
+            font=('Segoe UI', 20, 'bold'),
+            bg='white',
+            fg=self.COLORS['primary']
+        )
+        title_label.pack(pady=15)
+        
+        # Frame de controles principales
+        control_frame = tk.Frame(header_frame, bg='white')
+        control_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
+        
+        # Botones principales con colores
+        buttons_frame = tk.Frame(control_frame, bg='white')
+        buttons_frame.pack(side=tk.LEFT)
+        
+        self.start_button = tk.Button(
+            buttons_frame,
+            text="▶ Iniciar Detección",
             command=self.toggle_detection,
-            style='Accent.TButton'
+            bg=self.COLORS['primary'],
+            fg='white',
+            font=('Segoe UI', 11, 'bold'),
+            relief='flat',
+            padx=20,
+            pady=10,
+            cursor='hand2'
         )
-        self.start_button.pack(side=tk.LEFT, padx=(0, 10))
+        self.start_button.pack(side=tk.LEFT, padx=5)
+        self.start_button.bind('<Enter>', lambda e: self.start_button.config(bg=self.COLORS['hover']))
+        self.start_button.bind('<Leave>', lambda e: self.start_button.config(bg=self.COLORS['primary']))
         
-        self.clear_button = ttk.Button(
-            control_frame, 
-            text="Limpiar Texto", 
-            command=self.clear_text
+        clear_button = tk.Button(
+            buttons_frame,
+            text="🗑 Limpiar",
+            command=self.clear_text,
+            bg=self.COLORS['danger'],
+            fg='white',
+            font=('Segoe UI', 10),
+            relief='flat',
+            padx=15,
+            pady=10,
+            cursor='hand2'
         )
-        self.clear_button.pack(side=tk.LEFT, padx=(0, 10))
+        clear_button.pack(side=tk.LEFT, padx=5)
+        clear_button.bind('<Enter>', lambda e: clear_button.config(bg='#DC2626'))
+        clear_button.bind('<Leave>', lambda e: clear_button.config(bg=self.COLORS['danger']))
         
-        self.speak_button = ttk.Button(
-            control_frame, 
-            text="Reproducir Audio", 
-            command=self.speak_text
+        speak_button = tk.Button(
+            buttons_frame,
+            text="🔊 Reproducir",
+            command=self.speak_text,
+            bg=self.COLORS['accent'],
+            fg='white',
+            font=('Segoe UI', 10),
+            relief='flat',
+            padx=15,
+            pady=10,
+            cursor='hand2'
         )
-        self.speak_button.pack(side=tk.LEFT, padx=(0, 10))
+        speak_button.pack(side=tk.LEFT, padx=5)
+        speak_button.bind('<Enter>', lambda e: speak_button.config(bg='#059669'))
+        speak_button.bind('<Leave>', lambda e: speak_button.config(bg=self.COLORS['accent']))
         
-        # Nuevo: Selector de modo
-        mode_frame = ttk.LabelFrame(control_frame, text="Modo de Detección", padding="5")
-        mode_frame.pack(side=tk.LEFT, padx=(20, 10))
+        # Modo de detección
+        mode_frame = tk.LabelFrame(
+            control_frame,
+            text="Modo",
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 10, 'bold'),
+            relief='groove',
+            bd=2
+        )
+        mode_frame.pack(side=tk.LEFT, padx=20)
         
         self.mode_var = tk.StringVar(value="letters")
-        letters_radio = ttk.Radiobutton(
+        
+        letters_radio = tk.Radiobutton(
             mode_frame,
-            text="Letras",
+            text="📝 Letras",
             variable=self.mode_var,
             value="letters",
-            command=self.change_detection_mode
+            command=self.change_detection_mode,
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9),
+            selectcolor=self.COLORS['secondary']
         )
-        letters_radio.pack()
+        letters_radio.pack(anchor=tk.W, padx=10, pady=2)
         
-        syllables_radio = ttk.Radiobutton(
+        syllables_radio = tk.Radiobutton(
             mode_frame,
-            text="Sílabas",
+            text="🔤 Sílabas",
             variable=self.mode_var,
             value="syllables",
-            command=self.change_detection_mode
+            command=self.change_detection_mode,
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9),
+            selectcolor=self.COLORS['secondary']
         )
-        syllables_radio.pack()
+        syllables_radio.pack(anchor=tk.W, padx=10, pady=2)
         
-        # Nuevo: Control de auto-agregado
-        auto_add_frame = ttk.Frame(control_frame)
-        auto_add_frame.pack(side=tk.LEFT, padx=(20, 10))
+        # Configuración rápida
+        config_frame = tk.LabelFrame(
+            control_frame,
+            text="⚙ Configuración",
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 10, 'bold'),
+            relief='groove',
+            bd=2
+        )
+        config_frame.pack(side=tk.LEFT, padx=10)
         
         self.auto_add_var = tk.BooleanVar(value=True)
-        auto_add_check = ttk.Checkbutton(
-            auto_add_frame,
-            text="Auto-agregar letras",
+        auto_add_check = tk.Checkbutton(
+            config_frame,
+            text="Auto-agregar",
             variable=self.auto_add_var,
-            command=self.toggle_auto_add
+            command=self.toggle_auto_add,
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9),
+            selectcolor=self.COLORS['accent']
         )
-        auto_add_check.pack()
+        auto_add_check.pack(anchor=tk.W, padx=10, pady=2)
         
-        # Checkbox para auto-espacio
         self.auto_space_var = tk.BooleanVar(value=False)
-        auto_space_check = ttk.Checkbutton(
-            auto_add_frame,
+        auto_space_check = tk.Checkbutton(
+            config_frame,
             text="Auto-espacio",
             variable=self.auto_space_var,
-            command=self.toggle_auto_space
+            command=self.toggle_auto_space,
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9),
+            selectcolor=self.COLORS['accent']
         )
-        auto_space_check.pack()
+        auto_space_check.pack(anchor=tk.W, padx=10, pady=2)
         
-        # Control de velocidad de auto-agregado
-        ttk.Label(auto_add_frame, text="Velocidad:", font=('Arial', 8)).pack()
-        self.speed_var = tk.IntVar(value=5)  # 5 = velocidad media
-        speed_scale = ttk.Scale(
-            auto_add_frame,
+        # ========== CONTENIDO PRINCIPAL ==========
+        content_frame = tk.Frame(main_frame, bg=self.COLORS['bg_light'])
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Frame izquierdo - VIDEO
+        left_frame = tk.Frame(content_frame, bg='white', relief='raised', bd=2)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        
+        video_header = tk.Frame(left_frame, bg=self.COLORS['primary'], height=40)
+        video_header.pack(fill=tk.X)
+        
+        tk.Label(
+            video_header,
+            text="📹 Cámara en Vivo",
+            bg=self.COLORS['primary'],
+            fg='white',
+            font=('Segoe UI', 12, 'bold')
+        ).pack(pady=8)
+        
+        self.video_label = tk.Label(
+            left_frame,
+            text="Presiona 'Iniciar' para comenzar",
+            bg='#F1F5F9',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 12)
+        )
+        self.video_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        
+        # Controles de ajuste
+        controls_frame = tk.Frame(left_frame, bg='white')
+        controls_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        # Velocidad
+        vel_frame = tk.Frame(controls_frame, bg='white')
+        vel_frame.pack(side=tk.LEFT, padx=10)
+        
+        tk.Label(
+            vel_frame,
+            text="⚡ Velocidad:",
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9, 'bold')
+        ).pack()
+        
+        self.speed_var = tk.IntVar(value=5)
+        speed_scale = tk.Scale(
+            vel_frame,
             from_=1, to=10,
             variable=self.speed_var,
             orient=tk.HORIZONTAL,
-            length=80,
-            command=self.update_auto_add_speed
+            length=120,
+            command=self.update_auto_add_speed,
+            bg='white',
+            fg=self.COLORS['primary'],
+            troughcolor=self.COLORS['border'],
+            highlightthickness=0
         )
         speed_scale.pack()
         
-        # Nuevo: Control de sensibilidad
-        ttk.Label(control_frame, text="Sensibilidad:").pack(side=tk.LEFT, padx=(20, 5))
+        # Sensibilidad
+        sens_frame = tk.Frame(controls_frame, bg='white')
+        sens_frame.pack(side=tk.LEFT, padx=10)
+        
+        tk.Label(
+            sens_frame,
+            text="🎯 Sensibilidad:",
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9, 'bold')
+        ).pack()
+        
         self.sensitivity_var = tk.IntVar(value=5)
-        sensitivity_scale = ttk.Scale(
-            control_frame, 
-            from_=1, to=10, 
+        sensitivity_scale = tk.Scale(
+            sens_frame,
+            from_=1, to=10,
             variable=self.sensitivity_var,
             orient=tk.HORIZONTAL,
-            length=100,
-            command=self.update_sensitivity
+            length=120,
+            command=self.update_sensitivity,
+            bg='white',
+            fg=self.COLORS['primary'],
+            troughcolor=self.COLORS['border'],
+            highlightthickness=0
         )
-        sensitivity_scale.pack(side=tk.LEFT)
+        sensitivity_scale.pack()
         
-        # Frame central - Video y resultados
-        content_frame = ttk.Frame(main_frame)
-        content_frame.pack(fill=tk.BOTH, expand=True)
+        # Frame derecho - RESULTADOS
+        right_frame = tk.Frame(content_frame, bg='white', width=320, relief='raised', bd=2)
+        right_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        right_frame.pack_propagate(False)
         
-        # Frame de video
-        video_frame = ttk.LabelFrame(content_frame, text="Cámara", padding="5")
-        video_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        result_header = tk.Frame(right_frame, bg=self.COLORS['accent'], height=40)
+        result_header.pack(fill=tk.X)
         
-        self.video_label = ttk.Label(video_frame, text="Cámara no iniciada")
-        self.video_label.pack(expand=True)
+        tk.Label(
+            result_header,
+            text="✨ Resultados",
+            bg=self.COLORS['accent'],
+            fg='white',
+            font=('Segoe UI', 12, 'bold')
+        ).pack(pady=8)
         
-        # Frame de resultados - MEJORADO
-        result_frame = ttk.LabelFrame(content_frame, text="Resultados", padding="10")
-        result_frame.pack(side=tk.RIGHT, fill=tk.Y, ipadx=20)
+        # Letra detectada
+        detection_frame = tk.Frame(right_frame, bg=self.COLORS['bg_light'], relief='groove', bd=2)
+        detection_frame.pack(fill=tk.X, padx=15, pady=15)
         
-        # Letra detectada con confianza
-        ttk.Label(result_frame, text="Letra Detectada:", font=('Arial', 12, 'bold')).pack(anchor=tk.W)
-        
-        detection_info_frame = ttk.Frame(result_frame)
-        detection_info_frame.pack(pady=5)
+        tk.Label(
+            detection_frame,
+            text="Letra Detectada",
+            bg=self.COLORS['bg_light'],
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 11, 'bold')
+        ).pack(pady=5)
         
         self.letter_var = tk.StringVar(value="-")
-        letter_display = ttk.Label(
-            detection_info_frame, 
+        letter_display = tk.Label(
+            detection_frame,
             textvariable=self.letter_var,
-            font=('Arial', 48, 'bold'),
-            foreground='#E74C3C'
+            bg='white',
+            fg=self.COLORS['primary'],
+            font=('Arial', 56, 'bold'),
+            relief='flat',
+            width=3,
+            height=1
         )
-        letter_display.pack()
+        letter_display.pack(pady=10)
         
-        # Nuevo: Barra de confianza simple
-        ttk.Label(result_frame, text="Confianza:", font=('Arial', 10)).pack(anchor=tk.W, pady=(10, 0))
+        # Barra de confianza
+        confidence_frame = tk.Frame(detection_frame, bg=self.COLORS['bg_light'])
+        confidence_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        tk.Label(
+            confidence_frame,
+            text="Confianza:",
+            bg=self.COLORS['bg_light'],
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9)
+        ).pack()
+        
         self.confidence_var = tk.DoubleVar()
-        confidence_bar = ttk.Progressbar(
-            result_frame,
-            variable=self.confidence_var,
-            maximum=100,
-            length=200
-        )
-        confidence_bar.pack(pady=2)
         
-        self.confidence_label = ttk.Label(result_frame, text="0%")
+        # Canvas para barra de progreso personalizada
+        self.confidence_canvas = tk.Canvas(
+            confidence_frame,
+            height=25,
+            bg='white',
+            highlightthickness=1,
+            highlightbackground=self.COLORS['border']
+        )
+        self.confidence_canvas.pack(fill=tk.X, pady=5)
+        
+        self.confidence_label = tk.Label(
+            confidence_frame,
+            text="0%",
+            bg=self.COLORS['bg_light'],
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 10, 'bold')
+        )
         self.confidence_label.pack()
         
-        # Palabra formada - mantenemos igual
-        ttk.Label(result_frame, text="Palabra:", font=('Arial', 12, 'bold')).pack(anchor=tk.W, pady=(20, 0))
+        # Área de texto
+        text_frame = tk.Frame(right_frame, bg='white')
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        tk.Label(
+            text_frame,
+            text="📝 Texto Formado",
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 11, 'bold')
+        ).pack(anchor=tk.W, pady=5)
+        
+        text_container = tk.Frame(text_frame, bg=self.COLORS['border'], relief='flat', bd=1)
+        text_container.pack(fill=tk.BOTH, expand=True)
         
         self.word_text = tk.Text(
-            result_frame, 
-            height=8, 
-            width=25,
-            font=('Arial', 14),
-            wrap=tk.WORD
+            text_container,
+            height=8,
+            width=28,
+            font=('Consolas', 13),
+            wrap=tk.WORD,
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            relief='flat',
+            padx=8,
+            pady=8
         )
-        self.word_text.pack(pady=5)
+        self.word_text.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
-        # Scrollbar para el texto
-        scrollbar = ttk.Scrollbar(result_frame, orient=tk.VERTICAL, command=self.word_text.yview)
-        self.word_text.configure(yscrollcommand=scrollbar.set)
+        # Botones de texto
+        text_buttons_frame = tk.Frame(text_frame, bg='white')
+        text_buttons_frame.pack(fill=tk.X, pady=10)
         
-        # Botones de palabra
-        word_buttons_frame = ttk.Frame(result_frame)
-        word_buttons_frame.pack(fill=tk.X, pady=10)
+        add_letter_btn = tk.Button(
+            text_buttons_frame,
+            text="+ Letra",
+            command=self.add_letter_to_word,
+            bg=self.COLORS['secondary'],
+            fg='white',
+            font=('Segoe UI', 9),
+            relief='flat',
+            padx=10,
+            pady=5,
+            cursor='hand2'
+        )
+        add_letter_btn.pack(side=tk.LEFT, padx=2)
         
-        ttk.Button(
-            word_buttons_frame, 
-            text="Agregar Letra", 
-            command=self.add_letter_to_word
-        ).pack(side=tk.LEFT, padx=(0, 5))
+        space_btn = tk.Button(
+            text_buttons_frame,
+            text="Espacio",
+            command=self.add_space,
+            bg=self.COLORS['border'],
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9),
+            relief='flat',
+            padx=10,
+            pady=5,
+            cursor='hand2'
+        )
+        space_btn.pack(side=tk.RIGHT, padx=2)
         
-        ttk.Button(
-            word_buttons_frame, 
-            text="Espacio", 
-            command=self.add_space
-        ).pack(side=tk.RIGHT)
+        # ========== BARRA DE ESTADO ==========
+        status_bar = tk.Frame(main_frame, bg=self.COLORS['bg_dark'], height=35)
+        status_bar.pack(fill=tk.X, pady=(15, 0))
         
-        # Frame inferior - Estado mejorado
-        status_frame = ttk.Frame(main_frame)
-        status_frame.pack(fill=tk.X, pady=(10, 0))
+        self.status_var = tk.StringVar(value="✓ Listo para iniciar")
+        status_label = tk.Label(
+            status_bar,
+            textvariable=self.status_var,
+            bg=self.COLORS['bg_dark'],
+            fg=self.COLORS['text_light'],
+            font=('Segoe UI', 9)
+        )
+        status_label.pack(side=tk.LEFT, padx=15, pady=5)
         
-        self.status_var = tk.StringVar(value="Listo para iniciar")
-        status_label = ttk.Label(status_frame, textvariable=self.status_var)
-        status_label.pack(side=tk.LEFT)
-        
-        # Nuevo: Contador de detecciones
         self.detection_counter_var = tk.StringVar(value="Detecciones: 0")
-        counter_label = ttk.Label(status_frame, textvariable=self.detection_counter_var)
-        counter_label.pack(side=tk.RIGHT)
-        
-        # Nuevo: Botón para gestión de precisión
-        precision_button = ttk.Button(
-            status_frame,
-            text="Gestión de Precisión",
-            command=self.show_precision_manager
+        counter_label = tk.Label(
+            status_bar,
+            textvariable=self.detection_counter_var,
+            bg=self.COLORS['bg_dark'],
+            fg=self.COLORS['accent'],
+            font=('Segoe UI', 9, 'bold')
         )
-        precision_button.pack(side=tk.RIGHT, padx=(0, 10))
+        counter_label.pack(side=tk.RIGHT, padx=15, pady=5)
         
-        # Nuevo: Botón para mostrar galería de referencias
-        gallery_button = ttk.Button(
-            status_frame,
-            text="Galería de Referencias",
-            command=self.show_reference_gallery
-        )
-        gallery_button.pack(side=tk.RIGHT, padx=(0, 10))
+        # Botones de ayuda
+        help_buttons_frame = tk.Frame(status_bar, bg=self.COLORS['bg_dark'])
+        help_buttons_frame.pack(side=tk.RIGHT, padx=10)
         
-        # Nuevo: Botón para mostrar letras soportadas
-        letters_button = ttk.Button(
-            status_frame,
-            text="Ver Letras Soportadas",
-            command=self.show_supported_letters
+        # Botón Galería de Referencias
+        gallery_btn = tk.Button(
+            help_buttons_frame,
+            text="🖼 Referencias",
+            command=self.show_reference_gallery,
+            bg=self.COLORS['warning'],
+            fg='white',
+            font=('Segoe UI', 8),
+            relief='flat',
+            padx=8,
+            pady=3,
+            cursor='hand2'
         )
-        letters_button.pack(side=tk.RIGHT, padx=(0, 20))
+        gallery_btn.pack(side=tk.LEFT, padx=2)
+        gallery_btn.bind('<Enter>', lambda e: gallery_btn.config(bg='#D97706'))
+        gallery_btn.bind('<Leave>', lambda e: gallery_btn.config(bg=self.COLORS['warning']))
+        
+        # Botón Gestión de Precisión
+        precision_btn = tk.Button(
+            help_buttons_frame,
+            text="🎯 Calibrar",
+            command=self.show_precision_manager,
+            bg=self.COLORS['accent'],
+            fg='white',
+            font=('Segoe UI', 8),
+            relief='flat',
+            padx=8,
+            pady=3,
+            cursor='hand2'
+        )
+        precision_btn.pack(side=tk.LEFT, padx=2)
+        precision_btn.bind('<Enter>', lambda e: precision_btn.config(bg='#059669'))
+        precision_btn.bind('<Leave>', lambda e: precision_btn.config(bg=self.COLORS['accent']))
+        
+        # Botón Letras Soportadas
+        letters_btn = tk.Button(
+            help_buttons_frame,
+            text="📚 Letras",
+            command=self.show_supported_letters,
+            bg=self.COLORS['primary'],
+            fg='white',
+            font=('Segoe UI', 8),
+            relief='flat',
+            padx=8,
+            pady=3,
+            cursor='hand2'
+        )
+        letters_btn.pack(side=tk.LEFT, padx=2)
+        letters_btn.bind('<Enter>', lambda e: letters_btn.config(bg=self.COLORS['hover']))
+        letters_btn.bind('<Leave>', lambda e: letters_btn.config(bg=self.COLORS['primary']))
     
-    def change_detection_mode(self):
-        """Cambia entre modo de letras y sílabas"""
-        self.detection_mode = self.mode_var.get()
+    def update_confidence_bar(self, confidence):
+        """Actualiza la barra de confianza personalizada"""
+        self.confidence_canvas.delete("all")
+        width = self.confidence_canvas.winfo_width()
+        height = self.confidence_canvas.winfo_height()
         
-        # Resetear historial de detecciones al cambiar modo
+        if width > 1:
+            # Dibujar fondo
+            self.confidence_canvas.create_rectangle(
+                0, 0, width, height,
+                fill='#E2E8F0',
+                outline=''
+            )
+            
+            # Dibujar barra de progreso
+            bar_width = int(width * (confidence / 100))
+            
+            # Color según confianza
+            if confidence > 75:
+                color = self.COLORS['accent']
+            elif confidence > 50:
+                color = self.COLORS['warning']
+            else:
+                color = self.COLORS['danger']
+            
+            self.confidence_canvas.create_rectangle(
+                0, 0, bar_width, height,
+                fill=color,
+                outline=''
+            )
+    
+    # [RESTO DE MÉTODOS SE MANTIENEN IGUALES]
+    def change_detection_mode(self):
+        self.detection_mode = self.mode_var.get()
         if self.detection_mode == "syllables":
             self.syllable_classifier.reset_detection_history()
-            self.status_var.set("Modo sílabas activado - Use ambas manos")
+            self.status_var.set("✓ Modo sílabas - Use ambas manos")
         else:
             self.gesture_classifier.reset_detection_history()
-            self.status_var.set("Modo letras activado - Use una mano")
-        
-        # Limpiar detección actual
+            self.status_var.set("✓ Modo letras - Use una mano")
         self.detected_letter = ""
         self.detected_syllable = ""
         self.letter_var.set("-")
     
     def toggle_auto_space(self):
-        """Activa/desactiva el auto-espacio"""
         self.auto_space_enabled = self.auto_space_var.get()
         status = "activado" if self.auto_space_enabled else "desactivado"
-        self.status_var.set(f"Auto-espacio {status}")
+        self.status_var.set(f"✓ Auto-espacio {status}")
     
     def toggle_auto_add(self):
-        """Activa/desactiva el auto-agregado de letras"""
         self.auto_add_enabled = self.auto_add_var.get()
         status = "activado" if self.auto_add_enabled else "desactivado"
-        self.status_var.set(f"Auto-agregado {status}")
+        self.status_var.set(f"✓ Auto-agregado {status}")
     
     def update_auto_add_speed(self, value):
-        """Actualiza la velocidad del auto-agregado"""
         speed = int(float(value))
-        # Convertir escala 1-10 a frames necesarios (más velocidad = menos frames)
         self.auto_add_threshold = max(5, 25 - (speed * 2))
         self.cooldown_threshold = max(10, 50 - (speed * 4))
     
     def update_sensitivity(self, value):
-        """Actualiza la sensibilidad del clasificador"""
         sensitivity = int(float(value))
         self.gesture_classifier.set_stability_threshold(sensitivity)
     
     def show_precision_manager(self):
-        """Muestra la ventana de gestión de precisión"""
         try:
             from .precision_manager import PrecisionManager
             manager = PrecisionManager(self, self.gesture_calibrator)
             manager.show_precision_window()
         except ImportError as e:
-            messagebox.showerror("Error", f"No se pudo cargar el gestor de precisión: {e}")
+            messagebox.showerror("Error", f"No se pudo cargar: {e}")
     
     def show_reference_gallery(self):
-        """Muestra la galería de referencias"""
         try:
             from .reference_gallery import ReferenceGallery
             gallery = ReferenceGallery(self)
             gallery.show_gallery()
         except ImportError as e:
-            messagebox.showerror("Error", f"No se pudo cargar la galería: {e}")
+            messagebox.showerror("Error", f"No se pudo cargar: {e}")
     
     def show_supported_letters(self):
-        """Muestra ventana con letras soportadas"""
         letters_window = tk.Toplevel(self.root)
-        letters_window.title("Letras Soportadas")
-        letters_window.geometry("600x400")
+        letters_window.title("📚 Letras Soportadas")
+        letters_window.geometry("700x500")
         letters_window.configure(bg='white')
         
-        # Título
-        title_label = ttk.Label(letters_window, text="Alfabeto de Lenguaje de Señas Soportado", 
-                               font=('Arial', 16, 'bold'))
-        title_label.pack(pady=10)
+        # Header
+        header = tk.Frame(letters_window, bg=self.COLORS['primary'], height=60)
+        header.pack(fill=tk.X)
         
-        # Frame para las letras
-        letters_frame = ttk.Frame(letters_window)
-        letters_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        tk.Label(
+            header,
+            text="📚 Alfabeto de Lenguaje de Señas",
+            bg=self.COLORS['primary'],
+            fg='white',
+            font=('Segoe UI', 18, 'bold')
+        ).pack(pady=15)
         
-        # Mostrar letras en grid
-        row = 0
-        col = 0
+        # Grid de letras
+        letters_container = tk.Frame(letters_window, bg='white')
+        letters_container.pack(fill=tk.BOTH, expand=True, padx=30, pady=20)
+        
+        row, col = 0, 0
         for i, letter in enumerate(Config.SUPPORTED_LETTERS):
-            letter_label = ttk.Label(
-                letters_frame, 
-                text=letter, 
-                font=('Arial', 20, 'bold'),
-                background='lightblue',
-                foreground='darkblue',
-                width=3,
-                anchor='center'
+            letter_frame = tk.Frame(
+                letters_container,
+                bg=self.COLORS['secondary'],
+                relief='raised',
+                bd=2
             )
-            letter_label.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
+            letter_frame.grid(row=row, column=col, padx=8, pady=8, sticky='nsew')
+            
+            tk.Label(
+                letter_frame,
+                text=letter,
+                font=('Arial', 24, 'bold'),
+                bg=self.COLORS['secondary'],
+                fg='white',
+                width=2,
+                height=1
+            ).pack(padx=10, pady=10)
             
             col += 1
-            if col >= 8:  # 8 letras por fila
+            if col >= 7:
                 col = 0
                 row += 1
         
-        # Configurar grid
-        for i in range(8):
-            letters_frame.columnconfigure(i, weight=1)
+        for i in range(7):
+            letters_container.columnconfigure(i, weight=1)
         
         # Botón cerrar
-        close_button = ttk.Button(letters_window, text="Cerrar", command=letters_window.destroy)
-        close_button.pack(pady=10)
+        tk.Button(
+            letters_window,
+            text="Cerrar",
+            command=letters_window.destroy,
+            bg=self.COLORS['danger'],
+            fg='white',
+            font=('Segoe UI', 11),
+            relief='flat',
+            padx=30,
+            pady=10,
+            cursor='hand2'
+        ).pack(pady=20)
     
     def setup_camera(self):
-        """Configura la cámara (versión original que funciona)"""
         try:
             self.cap = cv2.VideoCapture(Config.CAMERA_INDEX)
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, Config.CAMERA_WIDTH)
@@ -407,78 +794,64 @@ class MainWindow:
             if not self.cap.isOpened():
                 raise Exception("No se pudo abrir la cámara")
             
-            self.status_var.set("Cámara configurada correctamente")
-        
+            self.status_var.set("✓ Cámara configurada")
         except Exception as e:
-            messagebox.showerror("Error", f"Error configurando cámara: {e}")
-            self.status_var.set("Error en cámara")
+            messagebox.showerror("Error", f"Error cámara: {e}")
+            self.status_var.set("✗ Error en cámara")
     
     def toggle_detection(self):
-        """Alterna entre iniciar y detener la detección"""
         if not self.is_running:
             self.start_detection()
         else:
             self.stop_detection()
     
     def start_detection(self):
-        """Inicia la detección de gestos"""
         if not self.cap or not self.cap.isOpened():
             messagebox.showerror("Error", "Cámara no disponible")
             return
         
         self.is_running = True
-        self.start_button.config(text="Detener Detección")
-        self.status_var.set("Detectando gestos...")
+        self.start_button.config(text="⏸ Detener", bg=self.COLORS['danger'])
+        self.status_var.set("🔴 Detectando gestos...")
         
-        # Iniciar hilo de detección
         detection_thread = threading.Thread(target=self.detection_loop)
         detection_thread.daemon = True
         detection_thread.start()
     
     def stop_detection(self):
-        """Detiene la detección de gestos"""
         self.is_running = False
-        self.start_button.config(text="Iniciar Detección")
-        self.status_var.set("Detección detenida")
+        self.start_button.config(text="▶ Iniciar Detección", bg=self.COLORS['primary'])
+        self.status_var.set("✓ Detección detenida")
     
     def detection_loop(self):
-        """Bucle principal de detección"""
         while self.is_running:
             try:
                 ret, frame = self.cap.read()
                 if not ret:
                     continue
                 
-                # Voltear frame horizontalmente para efecto espejo
                 frame = cv2.flip(frame, 1)
-                
-                # Detectar manos (ahora retorna diccionario con left/right)
                 processed_frame, hands_data = self.hand_detector.detect_hands(frame)
                 
                 detected_result = None
                 
                 if self.detection_mode == "syllables":
-                    # Modo sílabas - necesita ambas manos
                     if hands_data['left'] and hands_data['right']:
                         detected_result = self.syllable_classifier.predict_syllable(
                             hands_data['left'], 
                             hands_data['right']
                         )
                 elif self.detection_mode == "letters":
-                    # Modo letras - usa cualquier mano disponible
                     if hands_data['landmarks_list']:
                         for landmarks in hands_data['landmarks_list']:
                             letter = self.gesture_classifier.predict_gesture(landmarks)
                             if letter:
                                 detected_result = letter
-                                
-                                # Recolectar muestra para calibración automática
                                 confidence = hands_data.get('confidence', {}).get('left', 0) or \
                                            hands_data.get('confidence', {}).get('right', 0)
                                 self.gesture_calibrator.collect_sample(letter, landmarks, confidence)
                                 break
                 
-                # Actualizar interfaz
                 self.update_ui(processed_frame, detected_result, hands_data)
                 
             except Exception as e:
@@ -486,22 +859,17 @@ class MainWindow:
                 continue
     
     def update_ui(self, frame, detected_result, hands_data):
-        """Actualiza la interfaz con el frame y el resultado detectado (letra o sílaba)"""
         try:
-            # Convertir frame para tkinter
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_pil = Image.fromarray(frame_rgb)
             frame_tk = ImageTk.PhotoImage(frame_pil)
             
-            # Actualizar video
             self.video_label.configure(image=frame_tk)
             self.video_label.image = frame_tk
             
-            # Lógica de auto-agregado según el modo
             if self.auto_add_enabled and detected_result:
                 self.handle_auto_add_logic(detected_result)
             
-            # Actualizar display según el modo
             if self.detection_mode == "syllables":
                 self.update_syllable_display(detected_result, hands_data)
             else:
@@ -511,7 +879,6 @@ class MainWindow:
             print(f"Error actualizando UI: {e}")
     
     def update_letter_display(self, detected_letter):
-        """Actualiza display para modo letras"""
         if detected_letter and detected_letter != self.detected_letter:
             self.detected_letter = detected_letter
             self.letter_var.set(detected_letter)
@@ -520,123 +887,97 @@ class MainWindow:
         elif not detected_letter:
             self.letter_var.set("-")
         
-        # Actualizar confianza
         confidence = self.gesture_classifier.get_detection_confidence()
         self.confidence_var.set(confidence * 100)
         self.confidence_label.config(text=f"{confidence*100:.1f}%")
+        self.update_confidence_bar(confidence * 100)
     
     def update_syllable_display(self, detected_syllable, hands_data):
-        """Actualiza display para modo sílabas"""
         if detected_syllable and detected_syllable != self.detected_syllable:
             self.detected_syllable = detected_syllable
-            self.letter_var.set(detected_syllable)  # Usar el mismo display
+            self.letter_var.set(detected_syllable)
             self.detection_count += 1
             self.detection_counter_var.set(f"Sílabas: {self.detection_count}")
         elif not detected_syllable:
-            # Mostrar estado de las manos
             left_status = "✓" if hands_data['left'] else "✗"
             right_status = "✓" if hands_data['right'] else "✗"
             self.letter_var.set(f"L:{left_status} R:{right_status}")
         
-        # Actualizar confianza
         confidence = self.syllable_classifier.get_detection_confidence()
         self.confidence_var.set(confidence * 100)
         self.confidence_label.config(text=f"{confidence*100:.1f}%")
+        self.update_confidence_bar(confidence * 100)
     
     def handle_auto_add_logic(self, detected_letter):
-        """Maneja la lógica de auto-agregado de letras"""
-        # Reducir cooldown si está activo
         if self.cooldown_count > 0:
             self.cooldown_count -= 1
             return
         
         if detected_letter and detected_letter != "-":
-            # Resetear contador de no detección
             self.no_detection_count = 0
             
-            # Si es la misma letra que la anterior, incrementar contador
             if detected_letter == self.last_stable_letter:
                 self.stable_letter_count += 1
             else:
-                # Nueva letra detectada, reiniciar contador
                 self.last_stable_letter = detected_letter
                 self.stable_letter_count = 1
             
-            # Si la letra ha sido estable por suficiente tiempo
             if (self.stable_letter_count >= self.auto_add_threshold and 
                 detected_letter != self.last_added_letter):
                 
-                # Agregar la letra automáticamente
                 self.auto_add_letter(detected_letter)
-                
-                # Resetear contadores y activar cooldown
                 self.last_added_letter = detected_letter
                 self.stable_letter_count = 0
                 self.cooldown_count = self.cooldown_threshold
                 
         else:
-            # No hay letra detectada
             self.stable_letter_count = 0
             
-            # Contar frames sin detección para auto-espacio
             if self.auto_space_enabled:
                 self.no_detection_count += 1
                 
-                # Si ha pasado suficiente tiempo sin detección, agregar espacio
                 if self.no_detection_count >= self.auto_space_threshold:
                     self.auto_add_space()
-                    self.no_detection_count = 0  # Resetear contador
+                    self.no_detection_count = 0
     
     def auto_add_space(self):
-        """Agrega automáticamente un espacio"""
-        # Verificar que el último caracter no sea ya un espacio
         current_text = self.word_text.get(1.0, tk.END)
-        if current_text and current_text[-2] != " ":  # -2 porque el último es \n
+        if current_text and current_text[-2] != " ":
             self.word_text.insert(tk.END, " ")
             self.word_text.see(tk.END)
-            self.status_var.set("Auto-espacio agregado")
+            self.status_var.set("✓ Auto-espacio agregado")
     
     def auto_add_letter(self, letter):
-        """Agrega automáticamente una letra al texto"""
         if letter and letter != "-":
             self.word_text.insert(tk.END, letter)
             self.word_text.see(tk.END)
-            
-            # Actualizar status con indicación visual
-            self.status_var.set(f"Auto-agregado: {letter}")
-            
-            # Opcional: efecto visual breve
-            self.root.after(1000, lambda: self.status_var.set("Detectando gestos...") 
+            self.status_var.set(f"✓ Auto-agregado: {letter}")
+            self.root.after(1000, lambda: self.status_var.set("🔴 Detectando gestos...") 
                            if self.is_running else None)
     
     def add_letter_to_word(self):
-        """Agrega la letra detectada a la palabra"""
         if self.detected_letter and self.detected_letter != "-":
             self.word_text.insert(tk.END, self.detected_letter)
             self.word_text.see(tk.END)
     
     def add_space(self):
-        """Agrega un espacio a la palabra"""
         self.word_text.insert(tk.END, " ")
         self.word_text.see(tk.END)
     
     def clear_text(self):
-        """Limpia el texto formado"""
         self.word_text.delete(1.0, tk.END)
         self.letter_var.set("-")
         self.detected_letter = ""
     
     def speak_text(self):
-        """Reproduce el texto formado en audio"""
         text = self.word_text.get(1.0, tk.END).strip()
         if text:
             self.audio_manager.speak(text)
-            self.status_var.set(f"Reproduciendo: {text}")
+            self.status_var.set(f"🔊 Reproduciendo: {text}")
         else:
             messagebox.showinfo("Información", "No hay texto para reproducir")
     
     def on_closing(self):
-        """Maneja el cierre de la aplicación"""
         self.stop_detection()
         if self.cap:
             self.cap.release()
@@ -644,5 +985,4 @@ class MainWindow:
         self.root.destroy()
     
     def run(self):
-        """Inicia la aplicación"""
         self.root.mainloop()
