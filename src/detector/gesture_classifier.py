@@ -1,5 +1,5 @@
 # src/detector/gesture_classifier_improved.py
-# VERSIÓN MEJORADA CON MÁXIMA PRECISIÓN PARA TODAS LAS LETRAS
+# VERSIÓN CON MÁXIMA PRECISIÓN PARA TODAS LAS LETRAS
 
 import numpy as np
 import cv2
@@ -9,18 +9,18 @@ class GestureClassifier:
     def __init__(self, model_path: str = None):
         self.model = None
         self.label_encoder = None
-        self.is_trained = True  # Activar directamente
+        self.is_trained = True
         self.detection_history = []
         self.stability_threshold = 3
         self.confidence_threshold = 0.6
         
+        # Alfabeto completo incluyendo letras especiales del español
         self.supported_letters = [
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+            'N', 'Ñ', 'O', 'P', 'Q', 'R', 'RR', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'LL'
         ]
     
     def predict_gesture(self, landmarks: List) -> Optional[str]:
-        """Predice el gesto con velocidad y precisión"""
         if not self.is_trained or not landmarks or len(landmarks) < 63:
             return None
         
@@ -44,17 +44,16 @@ class GestureClassifier:
         return None
     
     def _classify_complete_alphabet(self, landmarks: List) -> Optional[str]:
-        """Clasificación completa mejorada"""
         if not landmarks or len(landmarks) < 63:
             return None
         
         landmarks_array = np.array(landmarks[:63]).reshape(-1, 3)
-        features = self._extract_advanced_features(landmarks_array)
+        features = self._extract_ultra_precise_features(landmarks_array)
         
-        return self._classify_with_priority(features, landmarks_array)
+        return self._classify_with_enhanced_rules(features, landmarks_array)
     
-    def _extract_advanced_features(self, lm) -> Dict:
-        """Extrae características avanzadas para todas las letras"""
+    def _extract_ultra_precise_features(self, lm) -> Dict:
+        """Extrae características ultra precisas para cada letra"""
         # Puntos clave
         wrist = lm[0]
         thumb_cmc, thumb_mcp, thumb_ip, thumb_tip = lm[1], lm[2], lm[3], lm[4]
@@ -63,25 +62,30 @@ class GestureClassifier:
         ring_mcp, ring_pip, ring_dip, ring_tip = lm[13], lm[14], lm[15], lm[16]
         pinky_mcp, pinky_pip, pinky_dip, pinky_tip = lm[17], lm[18], lm[19], lm[20]
         
-        f = {}  # features dictionary
+        f = {}
         
-        # === ESTADOS DE EXTENSIÓN MEJORADOS ===
-        f['thumb_ext'] = thumb_tip[1] < thumb_ip[1] - 0.02
-        f['index_ext'] = index_tip[1] < index_pip[1] - 0.03
-        f['middle_ext'] = middle_tip[1] < middle_pip[1] - 0.03
-        f['ring_ext'] = ring_tip[1] < ring_pip[1] - 0.03
-        f['pinky_ext'] = pinky_tip[1] < pinky_pip[1] - 0.03
+        # === ESTADOS DE EXTENSIÓN ULTRA PRECISOS ===
+        f['thumb_ext'] = thumb_tip[1] < thumb_ip[1] - 0.015
+        f['index_ext'] = index_tip[1] < index_pip[1] - 0.025
+        f['middle_ext'] = middle_tip[1] < middle_pip[1] - 0.025
+        f['ring_ext'] = ring_tip[1] < ring_pip[1] - 0.025
+        f['pinky_ext'] = pinky_tip[1] < pinky_pip[1] - 0.025
         
-        # === ÁNGULOS PRECISOS ===
+        # Extensión parcial (semi-doblados)
+        f['index_semi'] = index_pip[1] < index_mcp[1] and not f['index_ext']
+        f['middle_semi'] = middle_pip[1] < middle_mcp[1] and not f['middle_ext']
+        
+        # === ÁNGULOS ULTRA PRECISOS ===
         f['thumb_angle'] = self._angle(thumb_mcp, thumb_ip, thumb_tip)
         f['index_angle'] = self._angle(index_mcp, index_pip, index_tip)
         f['middle_angle'] = self._angle(middle_mcp, middle_pip, middle_tip)
         f['ring_angle'] = self._angle(ring_mcp, ring_pip, ring_tip)
         f['pinky_angle'] = self._angle(pinky_mcp, pinky_pip, pinky_tip)
         
-        # Ángulos entre dedos adyacentes
-        f['thumb_index_angle'] = self._angle(thumb_tip, wrist, index_tip)
+        # Ángulos entre dedos
         f['index_middle_angle'] = self._angle(index_tip, index_mcp, middle_tip)
+        f['middle_ring_angle'] = self._angle(middle_tip, middle_mcp, ring_tip)
+        f['thumb_index_angle'] = self._angle(thumb_tip, wrist, index_tip)
         
         # === DISTANCIAS CRÍTICAS ===
         f['thumb_index_d'] = np.linalg.norm(thumb_tip - index_tip)
@@ -91,229 +95,247 @@ class GestureClassifier:
         f['index_middle_d'] = np.linalg.norm(index_tip - middle_tip)
         f['middle_ring_d'] = np.linalg.norm(middle_tip - ring_tip)
         f['ring_pinky_d'] = np.linalg.norm(ring_tip - pinky_tip)
+        f['index_pinky_d'] = np.linalg.norm(index_tip - pinky_tip)
         
         # Distancias a la muñeca
         f['thumb_wrist_d'] = np.linalg.norm(thumb_tip - wrist)
         f['index_wrist_d'] = np.linalg.norm(index_tip - wrist)
+        f['middle_wrist_d'] = np.linalg.norm(middle_tip - wrist)
         
-        # === POSICIONES RELATIVAS (X, Y, Z) ===
+        # Distancias entre bases y puntas
+        f['thumb_to_index_base'] = np.linalg.norm(thumb_tip - index_mcp)
+        f['index_to_middle_base'] = np.linalg.norm(index_tip - middle_mcp)
+        
+        # === POSICIONES RELATIVAS EN 3D ===
         f['thumb_left'] = thumb_tip[0] < index_mcp[0] - 0.05
         f['thumb_right'] = thumb_tip[0] > pinky_mcp[0] + 0.05
-        f['thumb_center'] = index_mcp[0] <= thumb_tip[0] <= pinky_mcp[0]
-        f['thumb_above_fingers'] = thumb_tip[1] < index_mcp[1]
-        f['thumb_below_fingers'] = thumb_tip[1] > index_mcp[1]
+        f['thumb_center'] = not f['thumb_left'] and not f['thumb_right']
+        f['thumb_above'] = thumb_tip[1] < index_mcp[1] - 0.03
+        f['thumb_below'] = thumb_tip[1] > index_mcp[1] + 0.03
         
-        # Posición del índice
-        f['index_horiz'] = abs(index_tip[0] - index_mcp[0]) > 0.08
-        f['index_vert'] = abs(index_tip[1] - index_mcp[1]) > 0.08
+        # Posiciones horizontales/verticales
+        f['index_horiz'] = abs(index_tip[0] - index_mcp[0]) > abs(index_tip[1] - index_mcp[1])
+        f['middle_horiz'] = abs(middle_tip[0] - middle_mcp[0]) > abs(middle_tip[1] - middle_mcp[1])
         
-        # === CONFIGURACIONES ESPECIALES ===
+        # Posición del índice respecto al medio
+        f['index_left_of_middle'] = index_tip[0] < middle_tip[0] - 0.02
+        f['index_right_of_middle'] = index_tip[0] > middle_tip[0] + 0.02
+        
+        # === CONFIGURACIONES AVANZADAS ===
         f['fingers_count'] = sum([f['thumb_ext'], f['index_ext'], f['middle_ext'], 
                                   f['ring_ext'], f['pinky_ext']])
         f['fist'] = f['fingers_count'] == 0
-        f['all_up'] = f['fingers_count'] == 5
         
-        # Dedos curvados (crítico para E, T, X, N)
-        f['index_curved'] = 45 < f['index_angle'] < 120
-        f['middle_curved'] = 45 < f['middle_angle'] < 120
-        f['ring_curved'] = 45 < f['ring_angle'] < 120
-        f['all_curved'] = (f['index_curved'] and f['middle_curved'] and 
-                          f['ring_curved'] and 45 < f['pinky_angle'] < 120)
+        # Dedos curvados en rangos específicos
+        f['index_curved_45_90'] = 45 < f['index_angle'] < 90
+        f['index_curved_90_135'] = 90 < f['index_angle'] < 135
+        f['middle_curved_90_135'] = 90 < f['middle_angle'] < 135
         
-        # Dedos juntos vs separados
-        f['fingers_together'] = (f['index_middle_d'] < 0.04 and 
-                                f['middle_ring_d'] < 0.04 and 
-                                f['ring_pinky_d'] < 0.04)
-        f['fingers_spread'] = (f['index_middle_d'] > 0.08 or 
-                              f['middle_ring_d'] > 0.08 or 
-                              f['ring_pinky_d'] > 0.08)
+        # Agrupaciones específicas
+        f['three_middle_up'] = f['index_ext'] and f['middle_ext'] and f['ring_ext']
+        f['two_middle_up'] = f['index_ext'] and f['middle_ext'] and not f['ring_ext']
         
-        # === CARACTERÍSTICAS PARA LETRAS ESPECÍFICAS ===
+        # Características para letras específicas
         
-        # Para X: Índice doblado en forma de gancho
-        f['index_hook'] = (not f['index_ext'] and 
-                          f['index_curved'] and 
-                          index_tip[1] > index_mcp[1])
+        # Para K: Índice y medio en V con pulgar entre ellos
+        f['k_formation'] = (f['index_ext'] and f['middle_ext'] and 
+                           not f['ring_ext'] and not f['pinky_ext'] and
+                           f['thumb_middle_d'] < 0.09 and
+                           40 < f['index_middle_angle'] < 80)
         
-        # Para T: Pulgar entre índice y medio
-        f['thumb_between_index_middle'] = (
-            abs(thumb_tip[0] - (index_mcp[0] + middle_mcp[0])/2) < 0.03 and
-            not f['thumb_ext']
-        )
+        # Para P: Similar a K pero apuntando hacia abajo
+        f['p_formation'] = (f['index_ext'] and f['middle_ext'] and 
+                           not f['ring_ext'] and not f['pinky_ext'] and
+                           f['thumb_middle_d'] < 0.09 and
+                           index_tip[1] > middle_tip[1])
         
-        # Para N: Dos dedos sobre pulgar
-        f['two_over_thumb'] = (
-            not f['index_ext'] and not f['middle_ext'] and
-            f['ring_ext'] and f['pinky_ext'] and
-            thumb_tip[1] > index_pip[1]
-        )
+        # Para Q: G pero apuntando hacia abajo
+        f['q_formation'] = (f['index_ext'] and not f['middle_ext'] and 
+                           not f['ring_ext'] and not f['pinky_ext'] and
+                           f['thumb_ext'] and index_tip[1] > index_mcp[1])
         
-        # Para E: Todos curvados con pulgar visible
-        f['all_curved_thumb_out'] = (
-            f['all_curved'] and f['thumb_ext'] and
-            thumb_tip[0] < index_tip[0]
-        )
+        # Para U: Dedos juntos y paralelos
+        f['u_formation'] = (f['two_middle_up'] and f['index_middle_d'] < 0.045 and
+                           abs(index_tip[1] - middle_tip[1]) < 0.03)
         
-        # Para Z: Movimiento en Z (aproximado por posición)
-        f['index_diagonal'] = (f['index_ext'] and 
-                              abs(index_tip[0] - wrist[0]) > 0.1 and
-                              abs(index_tip[1] - wrist[1]) > 0.15)
+        # Para E: Todos curvados hacia dentro
+        f['e_formation'] = (f['fist'] and 
+                           all(90 < angle < 150 for angle in [
+                               f['index_angle'], f['middle_angle'], 
+                               f['ring_angle'], f['pinky_angle']]))
+        
+        # Para G: Índice horizontal con pulgar
+        f['g_formation'] = (f['index_ext'] and not f['middle_ext'] and
+                           f['thumb_ext'] and f['index_horiz'] and
+                           f['thumb_index_d'] > 0.12)
+        
+        # Para J: Meñique extendido con movimiento
+        f['j_formation'] = (not f['index_ext'] and not f['middle_ext'] and
+                           not f['ring_ext'] and f['pinky_ext'] and
+                           pinky_tip[0] < pinky_mcp[0])
+        
+        # Para Ñ: N con movimiento ondulado (aproximar con posición)
+        f['ñ_formation'] = (f['two_middle_up'] and not f['thumb_ext'] and
+                           f['index_middle_d'] < 0.04)
+        
+        # Para LL: L doble (pulgar e índice extendidos con separación específica)
+        f['ll_formation'] = (f['index_ext'] and f['thumb_ext'] and
+                            not f['middle_ext'] and not f['ring_ext'] and
+                            f['thumb_index_d'] > 0.15 and
+                            f['thumb_left'])
+        
+        # Para RR: R con movimiento (aproximar con índice y medio muy juntos)
+        f['rr_formation'] = (f['two_middle_up'] and 
+                            f['index_middle_d'] < 0.025 and
+                            f['index_left_of_middle'])
         
         return f
     
-    def _classify_with_priority(self, f: Dict, lm) -> Optional[str]:
-        """Clasificación con prioridad para letras problemáticas"""
+    def _classify_with_enhanced_rules(self, f: Dict, lm) -> Optional[str]:
+        """Clasificación con reglas ultra mejoradas"""
         
-        # === PRIORIDAD 1: LETRAS MÁS DIFÍCILES ===
+        # === LETRAS PROBLEMÁTICAS CON PRIORIDAD MÁXIMA ===
         
-        # LETRA X - Índice doblado en gancho
-        if f['index_hook'] and not f['middle_ext'] and not f['ring_ext'] and not f['pinky_ext']:
-            return "X"
+        # K - Índice y medio en V con pulgar tocando medio
+        if f['k_formation']:
+            return "K"
         
-        # LETRA T - Puño con pulgar entre índice y medio
-        if f['fist'] and f['thumb_between_index_middle']:
-            return "T"
+        # P - Similar a K pero hacia abajo
+        if f['p_formation']:
+            return "P"
         
-        # LETRA E - Todos los dedos curvados, pulgar afuera
-        if f['all_curved_thumb_out'] and f['fist']:
+        # Q - G pero hacia abajo
+        if f['q_formation']:
+            return "Q"
+        
+        # U - Dos dedos juntos y paralelos
+        if f['u_formation']:
+            return "U"
+        
+        # E - Todos los dedos curvados hacia dentro
+        if f['e_formation']:
             return "E"
         
-        # LETRA N - Dos dedos (anular y meñique) sobre pulgar
-        if f['two_over_thumb']:
-            return "N"
+        # G - Índice y pulgar extendidos horizontalmente
+        if f['g_formation']:
+            return "G"
         
-        # LETRA Z - Índice extendido en diagonal (simula Z)
-        if f['index_diagonal'] and f['fingers_count'] == 1 and f['index_ext']:
-            return "Z"
+        # J - Meñique con movimiento característico
+        if f['j_formation']:
+            return "J"
         
-        # === PRIORIDAD 2: LETRAS CON UN DEDO ===
+        # === LETRAS ESPECIALES DEL ESPAÑOL ===
         
-        # LETRA Y - Pulgar y meñique extendidos
+        # Ñ - Similar a N pero con ondulación
+        if f['ñ_formation'] and not f['thumb_ext']:
+            return "Ñ"
+        
+        # LL - L doble
+        if f['ll_formation'] and f['thumb_index_d'] > 0.15:
+            return "LL"
+        
+        # RR - R con movimiento fuerte
+        if f['rr_formation']:
+            return "RR"
+        
+        # === LETRAS ESTÁNDAR ===
+        
+        # X - Índice curvado en gancho
+        if (f['index_curved_45_90'] and not f['middle_ext'] and 
+            not f['ring_ext'] and not f['pinky_ext']):
+            return "X"
+        
+        # T - Puño con pulgar entre índice y medio
+        if (f['fist'] and f['thumb_center'] and 
+            f['thumb_to_index_base'] < 0.05):
+            return "T"
+        
+        # Y - Pulgar y meñique extendidos
         if (not f['index_ext'] and not f['middle_ext'] and not f['ring_ext'] and 
             f['pinky_ext'] and f['thumb_ext'] and f['thumb_pinky_d'] > 0.12):
             return "Y"
         
-        # LETRA I - Solo meñique
+        # I - Solo meñique
         if (not f['index_ext'] and not f['middle_ext'] and not f['ring_ext'] and 
             f['pinky_ext'] and not f['thumb_ext']):
             return "I"
         
-        # LETRA D - Índice arriba, pulgar toca otros
+        # D - Índice arriba, pulgar toca otros
         if (f['index_ext'] and not f['middle_ext'] and not f['ring_ext'] and 
             not f['pinky_ext'] and f['thumb_middle_d'] < 0.10):
             return "D"
         
-        # LETRA L - Índice y pulgar en L
+        # L - Índice y pulgar en L
         if (f['index_ext'] and not f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['thumb_ext'] and f['thumb_left']):
+            not f['pinky_ext'] and f['thumb_ext'] and f['thumb_left'] and
+            f['thumb_index_d'] > 0.10 and f['thumb_index_d'] < 0.18):
             return "L"
         
-        # LETRA G - Índice horizontal con pulgar
-        if (f['index_ext'] and not f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['thumb_ext'] and f['index_horiz']):
-            return "G"
-        
-        # === PRIORIDAD 3: LETRAS CON DOS DEDOS ===
-        
-        # LETRA U - Índice y medio juntos
+        # V - Índice y medio separados
         if (f['index_ext'] and f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['index_middle_d'] < 0.05 and not f['thumb_ext']):
-            return "U"
-        
-        # LETRA V - Índice y medio separados
-        if (f['index_ext'] and f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['index_middle_d'] > 0.06):
+            not f['pinky_ext'] and f['index_middle_d'] > 0.06 and
+            not f['thumb_ext']):
             return "V"
         
-        # LETRA H - Índice y medio horizontales
-        if (f['index_ext'] and f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['index_horiz'] and f['index_middle_d'] < 0.06):
+        # H - Índice y medio horizontales juntos
+        if (f['two_middle_up'] and f['index_horiz'] and f['middle_horiz'] and
+            f['index_middle_d'] < 0.06):
             return "H"
         
-        # LETRA K - Índice arriba, medio en ángulo
-        if (f['index_ext'] and f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['thumb_middle_d'] < 0.08 and 
-            f['index_middle_d'] > 0.08):
-            return "K"
-        
-        # LETRA R - Índice y medio cruzados
-        if (f['index_ext'] and f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['index_middle_d'] < 0.03):
+        # R - Índice y medio cruzados
+        if (f['two_middle_up'] and f['index_middle_d'] < 0.03 and
+            f['index_left_of_middle']):
             return "R"
         
-        # === PRIORIDAD 4: TRES O MÁS DEDOS ===
-        
-        # LETRA W - Tres dedos arriba
-        if (f['index_ext'] and f['middle_ext'] and f['ring_ext'] and 
-            not f['pinky_ext'] and not f['thumb_ext']):
+        # W - Tres dedos arriba
+        if (f['three_middle_up'] and not f['pinky_ext'] and not f['thumb_ext']):
             return "W"
         
-        # LETRA B - Cuatro dedos juntos
+        # B - Cuatro dedos juntos
         if (f['index_ext'] and f['middle_ext'] and f['ring_ext'] and 
-            f['pinky_ext'] and not f['thumb_ext'] and f['fingers_together']):
+            f['pinky_ext'] and not f['thumb_ext'] and
+            f['index_middle_d'] < 0.05 and f['middle_ring_d'] < 0.05):
             return "B"
         
-        # LETRA F - Tres dedos arriba, índice toca pulgar
+        # F - Tres dedos arriba, índice toca pulgar
         if (not f['index_ext'] and f['middle_ext'] and f['ring_ext'] and 
             f['pinky_ext'] and f['thumb_index_d'] < 0.08):
             return "F"
         
-        # === PRIORIDAD 5: PUÑOS Y FORMAS ===
+        # N - Dos dedos sobre pulgar (anular y meñique arriba)
+        if (not f['index_ext'] and not f['middle_ext'] and 
+            f['ring_ext'] and f['pinky_ext'] and not f['thumb_ext']):
+            return "N"
         
-        # LETRA A - Puño con pulgar al lado
+        # A - Puño con pulgar al lado
         if f['fist'] and f['thumb_left'] and not f['thumb_ext']:
             return "A"
         
-        # LETRA S - Puño con pulgar sobre dedos
+        # S - Puño con pulgar sobre dedos
         if f['fist'] and not f['thumb_left'] and not f['thumb_ext']:
             return "S"
         
-        # LETRA M - Pulgar bajo tres dedos
-        if (not f['index_ext'] and not f['middle_ext'] and not f['ring_ext'] and 
-            not f['pinky_ext'] and f['thumb_ext']):
+        # M - Pulgar bajo tres dedos
+        if (f['fist'] and f['thumb_ext'] and not f['thumb_left']):
             return "M"
         
-        # LETRA O - Círculo con dedos
+        # O - Círculo con dedos
         if f['thumb_index_d'] < 0.10 and f['fingers_count'] <= 2:
             return "O"
         
-        # LETRA C - Mano curva
+        # C - Mano curva
         if (f['fingers_count'] >= 2 and f['thumb_index_d'] > 0.08 and 
             f['thumb_index_d'] < 0.20):
             return "C"
         
-        # === CLASIFICACIÓN DE RESPALDO ===
-        return self._classify_by_count(f)
-    
-    def _classify_by_count(self, f: Dict) -> Optional[str]:
-        """Clasificación de respaldo por número de dedos"""
-        count = f['fingers_count']
-        
-        if count == 0:
-            return "A" if f['thumb_left'] else "S"
-        elif count == 1:
-            if f['index_ext']:
-                return "D"
-            elif f['pinky_ext']:
-                return "Y" if f['thumb_ext'] else "I"
-            elif f['thumb_ext']:
-                return "M"
-        elif count == 2:
-            if f['index_middle_d'] > 0.06:
-                return "V"
-            else:
-                return "U"
-        elif count == 3:
-            return "W"
-        elif count == 4:
-            return "B"
-        elif count == 5:
-            return "5"
+        # Z - Índice extendido en diagonal
+        if (f['index_ext'] and not f['middle_ext'] and not f['ring_ext'] and
+            not f['pinky_ext'] and f['index_horiz']):
+            return "Z"
         
         return None
     
     def _angle(self, p1, p2, p3):
-        """Calcula ángulo entre tres puntos"""
         v1 = p1 - p2
         v2 = p3 - p2
         norm1, norm2 = np.linalg.norm(v1), np.linalg.norm(v2)
