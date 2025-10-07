@@ -26,16 +26,23 @@ class GestureClassifier:
         self.validation_counter = 0
     
     def predict_gesture(self, landmarks: List) -> Optional[str]:
+        """Predice con validación cruzada mejorada"""
         if not self.is_trained or not landmarks or len(landmarks) < 63:
             return None
         
         current_letter = self._classify_complete_alphabet(landmarks)
+        
+        # Validación cruzada: verificar que la letra sea consistente
+        if current_letter:
+            validated_letter = self._cross_validate_detection(current_letter, landmarks)
+            current_letter = validated_letter
         
         self.detection_history.append(current_letter)
         
         if len(self.detection_history) > self.stability_threshold * 2:
             self.detection_history = self.detection_history[-self.stability_threshold:]
         
+        # PRECISIÓN MEJORADA: 60% de estabilidad requerida
         if len(self.detection_history) >= self.stability_threshold:
             recent_detections = self.detection_history[-self.stability_threshold:]
             
@@ -43,10 +50,77 @@ class GestureClassifier:
                 letter_count = sum(1 for detection in recent_detections 
                                  if detection == current_letter)
                 
-                if letter_count >= self.stability_threshold * 0.5:
+                # Requerir 60% de consistencia para mayor precisión
+                if letter_count >= self.stability_threshold * 0.6:
                     return current_letter
         
         return None
+    
+    def _cross_validate_detection(self, letter: str, landmarks: List) -> Optional[str]:
+        """Validación cruzada para mayor precisión"""
+        # Verificar que el gesto cumpla múltiples criterios
+        landmarks_array = np.array(landmarks[:63]).reshape(-1, 3)
+        features = self._extract_ultra_precise_features(landmarks_array)
+        
+        # Calcular score de confianza para esta letra
+        confidence_score = self._calculate_gesture_confidence(letter, features)
+        
+        # Guardar score
+        if letter not in self.confidence_scores:
+            self.confidence_scores[letter] = []
+        self.confidence_scores[letter].append(confidence_score)
+        
+        # Mantener solo últimos 10 scores
+        if len(self.confidence_scores[letter]) > 10:
+            self.confidence_scores[letter] = self.confidence_scores[letter][-10:]
+        
+        # Calcular confianza promedio
+        avg_confidence = np.mean(self.confidence_scores[letter])
+        
+        # Solo aceptar si confianza promedio es alta
+        if avg_confidence >= self.confidence_threshold:
+            return letter
+        else:
+            return None
+    
+    def _calculate_gesture_confidence(self, letter: str, features: Dict) -> float:
+        """Calcula confianza de que el gesto sea correcto"""
+        confidence = 0.5  # Base
+        
+        # Verificar criterios específicos por letra
+        if letter == 'K' and features.get('k_formation'):
+            confidence += 0.3
+            if 40 < features.get('index_middle_angle', 0) < 80:
+                confidence += 0.2
+        
+        elif letter == 'P' and features.get('p_formation'):
+            confidence += 0.3
+            if features.get('thumb_middle_d', 1) < 0.09:
+                confidence += 0.2
+        
+        elif letter == 'U' and features.get('u_formation'):
+            confidence += 0.3
+            if features.get('index_middle_d', 1) < 0.045:
+                confidence += 0.2
+        
+        elif letter == 'E' and features.get('e_formation'):
+            confidence += 0.3
+            if features.get('fist'):
+                confidence += 0.2
+        
+        elif letter == 'G' and features.get('g_formation'):
+            confidence += 0.3
+            if features.get('thumb_index_d', 0) > 0.12:
+                confidence += 0.2
+        
+        # Agregar más verificaciones para otras letras...
+        else:
+            # Para letras sin formación específica, usar criterios generales
+            fingers_count = features.get('fingers_count', 0)
+            if fingers_count in [0, 1, 2, 3, 4, 5]:
+                confidence += 0.3
+        
+        return min(1.0, confidence)
     
     def _classify_complete_alphabet(self, landmarks: List) -> Optional[str]:
         if not landmarks or len(landmarks) < 63:
@@ -194,12 +268,60 @@ class GestureClassifier:
                             f['index_middle_d'] < 0.025 and
                             f['index_left_of_middle'])
         
+        # Para T: Puño con pulgar entre índice y medio
+        f['t_formation'] = (f['fist'] and f['thumb_center'] and 
+                           f['thumb_to_index_base'] < 0.06 and
+                           thumb_tip[1] > index_mcp[1] - 0.02)
+        
+        # Para M: Pulgar bajo tres dedos
+        f['m_formation']=(not f['index_ext'] and not f['middle_ext']and not
+                          not f['ring_ext'] and not f['pinky_ext'] and
+                          f['thumb_ext'] and 
+                          thumb_tip[1] < index_mcp[1] and
+                           f['thumb_index_d'] < 0.08 and
+                           f['thumb_middle_d'] < 0.08 and
+                           f['thumb_ring_d'] < 0.08) 
+        
+        # Para N: Pulgar bajo dos dedos (anular y meñique arriba)
+        f['n_formation'] = (not f['index_ext'] and not f['middle_ext'] and
+                           f['ring_ext'] and f['pinky_ext'] and
+                           not f['thumb_ext'] and
+                           thumb_tip[1] < index_mcp[1] and
+                           f['thumb_index_d'] < 0.08 and
+                           f['thumb_middle_d'] < 0.08)
+        
         return f
     
     def _classify_with_enhanced_rules(self, f: Dict, lm) -> Optional[str]:
-        """Clasificación con reglas ultra mejoradas"""
+        """Clasificación con reglas ultra mejoradas - PRIORIDAD PARA LETRAS PROBLEMÁTICAS"""
         
-        # === LETRAS PROBLEMÁTICAS CON PRIORIDAD MÁXIMA ===
+        # === MÁXIMA PRIORIDAD: LETRAS PROBLEMÁTICAS ===
+        
+        # E - TODOS los dedos curvados (MÁXIMA PRIORIDAD)
+        if f['e_formation']:
+            return "E"
+        
+        # T - Puño con pulgar entre dedos (MÁXIMA PRIORIDAD)
+        if f['t_formation']:
+            return "T"
+        
+        # M - Pulgar bajo TRES dedos
+        if f['m_formation']:
+            return "M"
+        
+        # N - Pulgar bajo DOS dedos, anular y meñique arriba
+        if f['n_formation']:
+            return "N"
+        
+        # Ñ - Como N pero con separación
+        if f['ñ_formation']:
+            return "Ñ"
+        
+        # Q - Como G pero hacia abajo
+        if f['q_formation']:
+            return "Q"
+        
+        # === SEGUNDA PRIORIDAD: OTRAS LETRAS DIFÍCILES ===
         
         # K - Índice y medio en V con pulgar tocando medio
         if f['k_formation']:
@@ -209,17 +331,9 @@ class GestureClassifier:
         if f['p_formation']:
             return "P"
         
-        # Q - G pero hacia abajo
-        if f['q_formation']:
-            return "Q"
-        
         # U - Dos dedos juntos y paralelos
         if f['u_formation']:
             return "U"
-        
-        # E - Todos los dedos curvados hacia dentro
-        if f['e_formation']:
-            return "E"
         
         # G - Índice y pulgar extendidos horizontalmente
         if f['g_formation']:
@@ -228,12 +342,6 @@ class GestureClassifier:
         # J - Meñique con movimiento característico
         if f['j_formation']:
             return "J"
-        
-        # === LETRAS ESPECIALES DEL ESPAÑOL ===
-        
-        # Ñ - Similar a N pero con ondulación
-        if f['ñ_formation'] and not f['thumb_ext']:
-            return "Ñ"
         
         # LL - L doble
         if f['ll_formation'] and f['thumb_index_d'] > 0.15:
