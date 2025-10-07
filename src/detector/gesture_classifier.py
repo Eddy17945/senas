@@ -11,14 +11,19 @@ class GestureClassifier:
         self.label_encoder = None
         self.is_trained = True
         self.detection_history = []
-        self.stability_threshold = 3
-        self.confidence_threshold = 0.6
+        self.stability_threshold = 4  # AUMENTADO de 3 a 4 para más precisión
+        self.confidence_threshold = 0.65  # AUMENTADO de 0.6 a 0.65
         
         # Alfabeto completo incluyendo letras especiales del español
         self.supported_letters = [
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
             'N', 'Ñ', 'O', 'P', 'Q', 'R', 'RR', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'LL'
         ]
+        
+        # Sistema de validación cruzada
+        self.confidence_scores = {}
+        self.last_validated_letter = None
+        self.validation_counter = 0
     
     def predict_gesture(self, landmarks: List) -> Optional[str]:
         if not self.is_trained or not landmarks or len(landmarks) < 63:
