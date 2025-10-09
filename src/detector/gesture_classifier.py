@@ -231,7 +231,9 @@ class GestureClassifier:
         # Para Q: G pero apuntando hacia abajo
         f['q_formation'] = (f['index_ext'] and not f['middle_ext'] and 
                            not f['ring_ext'] and not f['pinky_ext'] and
-                           f['thumb_ext'] and index_tip[1] > index_mcp[1])
+                           f['thumb_ext'] and 
+                           f['thumb_index_d'] > 0.11 and  # Más separación
+                           index_tip[1] > index_mcp[1])  # Apunta abajo
         
         # Para U: Dedos juntos y paralelos
         f['u_formation'] = (f['two_middle_up'] and f['index_middle_d'] < 0.045 and
@@ -274,13 +276,19 @@ class GestureClassifier:
                            thumb_tip[1] > index_mcp[1] - 0.02)
         
         # Para M: Pulgar bajo tres dedos
-        f['m_formation']=(not f['index_ext'] and not f['middle_ext']and not
-                          not f['ring_ext'] and not f['pinky_ext'] and
-                          f['thumb_ext'] and 
-                          thumb_tip[1] < index_mcp[1] and
+        f['m_formation'] = (not f['index_ext'] and not f['middle_ext'] and 
+                           not f['ring_ext'] and not f['pinky_ext'] and
+                           f['thumb_ext'] and 
+                           thumb_tip[1] < index_mcp[1] and
                            f['thumb_index_d'] < 0.08 and
                            f['thumb_middle_d'] < 0.08 and
-                           f['thumb_ring_d'] < 0.08) 
+                           f['thumb_ring_d'] < 0.08)
+        
+              # Para R mejorada: Índice y medio muy juntos y cruzados
+        f['r_improved'] = (f['two_middle_up'] and 
+                          f['index_middle_d'] < 0.04 and  # Más permisivo
+                          f['index_left_of_middle'])
+
         
         # Para N: Pulgar bajo dos dedos (anular y meñique arriba)
         f['n_formation'] = (not f['index_ext'] and not f['middle_ext'] and
@@ -396,7 +404,10 @@ class GestureClassifier:
             return "H"
         
         # R - Índice y medio cruzados
-        if (f['two_middle_up'] and f['index_middle_d'] < 0.03 and
+        if f.get('r_improved', False):
+            return "R"
+        
+        if (f['two_middle_up'] and f['index_middle_d'] < 0.04 and
             f['index_left_of_middle']):
             return "R"
         
