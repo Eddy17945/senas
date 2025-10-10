@@ -232,8 +232,11 @@ class GestureClassifier:
         f['q_formation'] = (f['index_ext'] and not f['middle_ext'] and 
                            not f['ring_ext'] and not f['pinky_ext'] and
                            f['thumb_ext'] and 
-                           f['thumb_index_d'] > 0.11 and  # Más separación
-                           index_tip[1] > index_mcp[1])  # Apunta abajo
+                           f['thumb_index_d'] > 0.07 and  # Más permisivo
+                           f['thumb_index_d'] < 0.20 and  # Rango superior
+                           (index_tip[1] > index_mcp[1] - 0.05 or  # Apunta abajo (más tolerante)
+                            abs(index_tip[1] - thumb_tip[1]) < 0.06))  # Índice y pulgar al mismo nivel
+
         
         # Para U: Dedos juntos y paralelos
         f['u_formation'] = (f['two_middle_up'] and f['index_middle_d'] < 0.045 and
@@ -285,9 +288,11 @@ class GestureClassifier:
                            f['thumb_ring_d'] < 0.08)
         
               # Para R mejorada: Índice y medio muy juntos y cruzados
-        f['r_improved'] = (f['two_middle_up'] and 
-                          f['index_middle_d'] < 0.04 and  # Más permisivo
-                          f['index_left_of_middle'])
+        f['r_improved'] = (f['index_ext'] and f['middle_ext'] and 
+                          not f['ring_ext'] and not f['pinky_ext'] and
+                          f['index_middle_d'] < 0.05 and  # MÁS permisivo
+                          (f['index_left_of_middle'] or 
+                           abs(index_tip[0] - middle_tip[0]) < 0.025))  # Alternativa
 
         
         # Para N: Pulgar bajo dos dedos (anular y meñique arriba)
@@ -304,6 +309,21 @@ class GestureClassifier:
         """Clasificación con reglas ultra mejoradas - PRIORIDAD PARA LETRAS PROBLEMÁTICAS"""
         
         # === MÁXIMA PRIORIDAD: LETRAS PROBLEMÁTICAS ===
+
+         # Q - MÁXIMA PRIORIDAD: índice y pulgar extendidos apuntando hacia abajo
+        # Verificación TRIPLE para Q
+        q_check1 = (f['index_ext'] and not f['middle_ext'] and 
+                   not f['ring_ext'] and not f['pinky_ext'] and
+                   f['thumb_ext'] and 
+                   0.07 < f['thumb_index_d'] < 0.25)
+        
+        q_check2 = (lm[8][1] > lm[5][1] - 0.05)  # índice apunta hacia abajo o horizontal
+        
+        q_check3 = (lm[4][1] > lm[2][1] - 0.05)  # pulgar también apunta abajo o horizontal
+        
+        if q_check1 and (q_check2 or q_check3):
+            return "Q"
+        
         
         # E - TODOS los dedos curvados (MÁXIMA PRIORIDAD)
         if f['e_formation']:
@@ -315,7 +335,7 @@ class GestureClassifier:
         
         # M - Pulgar bajo TRES dedos
         if f['m_formation']:
-            return "M"
+            return "M"                                                                                                                                                                                                                                                                                                                                                                                                                                        
         
         # N - Pulgar bajo DOS dedos, anular y meñique arriba
         if f['n_formation']:
@@ -325,9 +345,8 @@ class GestureClassifier:
         if f['ñ_formation']:
             return "Ñ"
         
-        # Q - Como G pero hacia abajo
-        if f['q_formation']:
-            return "Q"
+        
+
         
         # === SEGUNDA PRIORIDAD: OTRAS LETRAS DIFÍCILES ===
         
@@ -403,8 +422,21 @@ class GestureClassifier:
             f['index_middle_d'] < 0.06):
             return "H"
         
-        # R - Índice y medio cruzados
+         # R - Índice y medio cruzados (TRIPLE VERIFICACIÓN)
         if f.get('r_improved', False):
+            return "R"
+        
+        # R - Verificación alternativa 1: dedos muy juntos
+        if (f['index_ext'] and f['middle_ext'] and 
+            not f['ring_ext'] and not f['pinky_ext'] and
+            not f['thumb_ext'] and
+            f['index_middle_d'] < 0.05):
+            return "R"
+        
+        # R - Verificación alternativa 2: cruce visible
+        if (f['two_middle_up'] and 
+            f['index_middle_d'] < 0.04 and
+            f['index_left_of_middle']):
             return "R"
         
         if (f['two_middle_up'] and f['index_middle_d'] < 0.04 and
