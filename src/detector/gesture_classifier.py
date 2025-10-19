@@ -491,6 +491,71 @@ class GestureClassifier:
         
         return None
     
+
+    def detect_control_gesture(self, landmarks: List) -> Optional[str]:
+        """
+        Detecta gestos de control especiales
+        Retorna: 'DELETE', 'SPACE', 'CLEAR', 'PAUSE', o None
+        """
+        if not landmarks or len(landmarks) < 63:
+            return None
+        
+        landmarks_array = np.array(landmarks[:63]).reshape(-1, 3)
+        features = self._extract_ultra_precise_features(landmarks_array)
+        
+        # Verificar gestos de control
+        control = self._classify_control_gestures(features, landmarks_array)
+        
+        return control
+    
+    def _classify_control_gestures(self, f: Dict, lm) -> Optional[str]:
+        """
+        Clasifica gestos de control especiales
+        """
+        # Puntos de referencia
+        thumb_tip = lm[4]
+        index_tip = lm[8]
+        middle_tip = lm[12]
+        ring_tip = lm[16]
+        pinky_tip = lm[20]
+        wrist = lm[0]
+        
+        # ===== GESTO: BORRAR (DELETE) =====
+        # Mano cerrada en puño CON pulgar extendido hacia la izquierda
+        # Como si dijeras "NO" con el pulgar
+        if (not f['index_ext'] and not f['middle_ext'] and 
+            not f['ring_ext'] and not f['pinky_ext'] and
+            f['thumb_ext'] and 
+            thumb_tip[0] < wrist[0] - 0.08 and  # Pulgar muy a la izquierda
+            abs(thumb_tip[1] - wrist[1]) < 0.05):  # A la altura de la muñeca
+            return "DELETE"
+        
+        # ===== GESTO: ESPACIO (SPACE) =====
+        # Mano PLANA horizontal (todos los dedos extendidos y juntos)
+        # Como si dijeras "ALTO"
+        if (f['index_ext'] and f['middle_ext'] and f['ring_ext'] and 
+            f['pinky_ext'] and not f['thumb_ext'] and
+            f['index_middle_d'] < 0.05 and  # Dedos juntos
+            f['middle_ring_d'] < 0.05 and
+            f['ring_pinky_d'] < 0.05 and
+            f['index_horiz']):  # Orientación horizontal
+            return "SPACE"
+        
+        # ===== GESTO: LIMPIAR TODO (CLEAR) =====
+        # AMBOS puños cerrados (detectar cuando hay 0 dedos extendidos)
+        # Y las manos están cerca una de otra
+        if f['fist'] and not f['thumb_ext']:
+            return "CLEAR_CANDIDATE"  # Candidato, necesita ambas manos
+        
+        # ===== GESTO: PAUSA (PAUSE) =====
+        # Mano en forma de "OK" (pulgar e índice formando círculo)
+        if (not f['middle_ext'] and not f['ring_ext'] and not f['pinky_ext'] and
+            f['thumb_index_d'] < 0.06 and  # Muy cerca formando círculo
+            thumb_tip[1] < index_tip[1]):  # Pulgar arriba del índice
+            return "PAUSE"
+        
+        return None
+    
     def _angle(self, p1, p2, p3):
         v1 = p1 - p2
         v2 = p3 - p2

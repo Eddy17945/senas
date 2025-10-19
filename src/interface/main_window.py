@@ -13,6 +13,7 @@ from ..detector.gesture_classifier import GestureClassifier
 from ..detector.syllable_classifier import SyllableClassifier
 from ..detector.advanced_hand_detector import AdvancedHandDetector
 from ..detector.gesture_calibrator import GestureCalibrator
+from ..detector.gesture_controls import GestureControls
 from ..utils.audio_manager import AudioManager
 from ..config.settings import Config
 
@@ -64,6 +65,7 @@ class MainWindow:
         self.gesture_classifier = GestureClassifier()
         self.syllable_classifier = SyllableClassifier()
         self.gesture_calibrator = GestureCalibrator()
+        self.gesture_controls = GestureControls()
         self.audio_manager = AudioManager(
             rate=Config.VOICE_RATE,
             volume=Config.VOICE_VOLUME
@@ -90,6 +92,11 @@ class MainWindow:
         self.auto_space_enabled = False
         self.no_detection_count = 0
         self.auto_space_threshold = 90
+
+        # Variables para controles
+        self.control_gesture_detected = None
+        self.show_control_feedback = False
+        self.control_feedback_text = ""
         
         # Configurar interfaz
         self.setup_ui()
@@ -647,6 +654,9 @@ class MainWindow:
         letters_btn.pack(side=tk.LEFT, padx=2)
         letters_btn.bind('<Enter>', lambda e: letters_btn.config(bg=self.COLORS['hover']))
         letters_btn.bind('<Leave>', lambda e: letters_btn.config(bg=self.COLORS['primary']))
+
+
+        
     
     def update_confidence_bar(self, confidence):
         """Actualiza la barra de confianza personalizada"""
@@ -840,37 +850,56 @@ class MainWindow:
                 processed_frame, hands_data = self.hand_detector.detect_hands(frame)
                 
                 detected_result = None
+                control_result = None
                 
-                if self.detection_mode == "syllables":
-                    if hands_data['left'] and hands_data['right']:
-                        detected_result = self.syllable_classifier.predict_syllable(
-                            hands_data['left'], 
-                            hands_data['right']
-                        )
-                elif self.detection_mode == "letters":
-                    if hands_data['landmarks_list']:
-                        for landmarks in hands_data['landmarks_list']:
-                            letter = self.gesture_classifier.predict_gesture(landmarks)
-                            if letter:
-                                detected_result = letter
-                                confidence = hands_data.get('confidence', {}).get('left', 0) or \
-                                           hands_data.get('confidence', {}).get('right', 0)
-                                self.gesture_calibrator.collect_sample(letter, landmarks, confidence)
+                # ===== DETECTAR GESTOS DE CONTROL PRIMERO =====
+                if hands_data['landmarks_list']:
+                    for landmarks in hands_data['landmarks_list']:
+                        # Detectar gesto de control
+                        control_gesture = self.gesture_classifier.detect_control_gesture(landmarks)
+                        
+                        if control_gesture:
+                            # Procesar el control
+                            control_result = self.gesture_controls.process_control(
+                                control_gesture, 
+                                both_hands_data=hands_data
+                            )
+                            
+                            if control_result:
+                                self.execute_control_gesture(control_result)
                                 break
                 
-                self.update_ui(processed_frame, detected_result, hands_data)
+                # ===== DETECTAR LETRAS/SÍLABAS (solo si no hay control activo) =====
+                if not control_result:
+                    if self.detection_mode == "syllables":
+                        if hands_data['left'] and hands_data['right']:
+                            detected_result = self.syllable_classifier.predict_syllable(
+                                hands_data['left'], 
+                                hands_data['right']
+                            )
+                    elif self.detection_mode == "letters":
+                        if hands_data['landmarks_list']:
+                            for landmarks in hands_data['landmarks_list']:
+                                letter = self.gesture_classifier.predict_gesture(landmarks)
+                                if letter:
+                                    detected_result = letter
+                                    confidence = hands_data.get('confidence', {}).get('left', 0) or \
+                                               hands_data.get('confidence', {}).get('right', 0)
+                                    self.gesture_calibrator.collect_sample(letter, landmarks, confidence)
+                                    break
+                
+                self.update_ui(processed_frame, detected_result, hands_data, control_result)
                 
             except Exception as e:
                 print(f"Error en detección: {e}")
                 continue
     
-    def update_ui(self, frame, detected_result, hands_data):
+    def update_ui(self, frame, detected_result, hands_data, control_result=None):
         try:
             # Obtener tamaño actual del label
             label_width = self.video_label.winfo_width()
             label_height = self.video_label.winfo_height()
             
-            # Si el label aún no tiene tamaño, usar valores por defecto
             if label_width <= 1:
                 label_width = 640
                 label_height = 480
@@ -879,7 +908,6 @@ class MainWindow:
             frame_height, frame_width = frame.shape[:2]
             aspect_ratio = frame_width / frame_height
             
-            # Ajustar al tamaño del label manteniendo proporción
             if label_width / label_height > aspect_ratio:
                 new_height = label_height
                 new_width = int(new_height * aspect_ratio)
@@ -887,7 +915,17 @@ class MainWindow:
                 new_width = label_width
                 new_height = int(new_width / aspect_ratio)
             
-            # Redimensionar el frame
+            # ===== DIBUJAR INDICADOR DE CONTROL SI HAY UNO ACTIVO =====
+            if control_result and self.show_control_feedback:
+                # Dibujar overlay con el control detectado
+                overlay = frame.copy()
+                cv2.rectangle(overlay, (10, 10), (300, 80), (0, 100, 255), -1)
+                cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+                
+                control_name = self.gesture_controls.get_control_name(control_result)
+                cv2.putText(frame, control_name, (20, 55),
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
+            
             frame_resized = cv2.resize(frame, (new_width, new_height), 
                                       interpolation=cv2.INTER_AREA)
             
@@ -898,7 +936,8 @@ class MainWindow:
             self.video_label.configure(image=frame_tk)
             self.video_label.image = frame_tk
             
-            if self.auto_add_enabled and detected_result:
+            # Solo procesar auto-add si NO hay control activo
+            if self.auto_add_enabled and detected_result and not control_result:
                 self.handle_auto_add_logic(detected_result)
             
             if self.detection_mode == "syllables":
@@ -970,6 +1009,59 @@ class MainWindow:
                 if self.no_detection_count >= self.auto_space_threshold:
                     self.auto_add_space()
                     self.no_detection_count = 0
+
+    # 4. AGREGAR NUEVO MÉTODO execute_control_gesture:
+    def execute_control_gesture(self, control: str):
+        """
+        Ejecuta un gesto de control
+        """
+        if control == "DELETE":
+            self.delete_last_letter()
+            self.show_control_feedback_message("⌫ Letra borrada")
+            
+        elif control == "SPACE":
+            self.add_space()
+            self.show_control_feedback_message("␣ Espacio agregado")
+            
+        elif control == "CLEAR":
+            self.clear_text()
+            self.show_control_feedback_message("🗑️ Texto limpiado")
+            
+        elif control == "PAUSE":
+            self.toggle_pause_detection()
+            status = "pausada" if not self.is_running else "reanudada"
+            self.show_control_feedback_message(f"⏸️ Detección {status}")
+    
+    def delete_last_letter(self):
+        """Borra la última letra del texto"""
+        current_text = self.word_text.get(1.0, tk.END)
+        if len(current_text) > 1:  # Más que solo el salto de línea
+            self.word_text.delete("end-2c", "end-1c")
+            self.word_text.see(tk.END)
+    
+    def toggle_pause_detection(self):
+        """Pausa/reanuda la detección temporalmente"""
+        if self.is_running:
+            self.stop_detection()
+        else:
+            self.start_detection()
+    
+    def show_control_feedback_message(self, message: str):
+        """Muestra mensaje de feedback visual del control ejecutado"""
+        self.control_feedback_text = message
+        self.show_control_feedback = True
+        
+        # Actualizar status
+        self.status_var.set(message)
+        
+        # Ocultar mensaje después de 2 segundos
+        self.root.after(2000, self.hide_control_feedback)
+    
+    def hide_control_feedback(self):
+        """Oculta el mensaje de feedback"""
+        self.show_control_feedback = False
+        if self.is_running:
+            self.status_var.set("🔴 Detectando gestos...")
     
     def auto_add_space(self):
         current_text = self.word_text.get(1.0, tk.END)
