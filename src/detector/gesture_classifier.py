@@ -549,10 +549,10 @@ class GestureClassifier:
         
         # ===== GESTO: PAUSA (PAUSE) =====
         # Mano en forma de "OK" (pulgar e índice formando círculo)
-        if (not f['middle_ext'] and not f['ring_ext'] and not f['pinky_ext'] and
-            f['thumb_index_d'] < 0.06 and  # Muy cerca formando círculo
-            thumb_tip[1] < index_tip[1]):  # Pulgar arriba del índice
-            return "PAUSE"
+       # if (not f['middle_ext'] and not f['ring_ext'] and not f['pinky_ext'] and
+        #    f['thumb_index_d'] < 0.06 and  # Muy cerca formando círculo
+        #   thumb_tip[1] < index_tip[1]):  # Pulgar arriba del índice
+        #   return "PAUSE"
         
         return None
     
