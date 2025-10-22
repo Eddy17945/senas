@@ -1,3 +1,4 @@
+# src/utils/word_sentence_manager.py
 """
 Gestor que separa la palabra actual de la oración completa
 """
@@ -49,7 +50,7 @@ class WordSentenceManager:
     
     def delete_last_letter(self):
         """
-        Borra la última letra de la palabra actual
+        Borra la última letra de la palabra actual o de la oración
         """
         if self.current_word:
             self.current_word = self.current_word[:-1]

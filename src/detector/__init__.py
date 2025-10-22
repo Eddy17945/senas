@@ -9,6 +9,7 @@ from .syllable_classifier import SyllableClassifier
 from .advanced_hand_detector import AdvancedHandDetector
 from .gesture_calibrator import GestureCalibrator
 from .gesture_controls import GestureControls
+from .complete_word_detector import CompleteWordDetector
 
 __all__ = [
     'HandDetector', 
@@ -16,5 +17,6 @@ __all__ = [
     'SyllableClassifier',
     'AdvancedHandDetector',
     'GestureCalibrator',
-    'GestureControls'
+    'GestureControls',
+    'CompleteWordDetector'
 ]

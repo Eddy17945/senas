@@ -17,6 +17,7 @@ from ..detector.gesture_controls import GestureControls
 from ..utils.word_dictionary import WordDictionary
 from ..utils.word_suggester import WordSuggester
 from ..utils.sentence_bank import SentenceBank
+from ..utils.word_sentence_manager import WordSentenceManager
 from ..utils.audio_manager import AudioManager
 from ..config.settings import Config
 
@@ -74,6 +75,7 @@ class MainWindow:
         self.word_dictionary = WordDictionary()
         self.word_suggester = WordSuggester()
         self.sentence_bank = SentenceBank()
+        self.word_sentence_manager = WordSentenceManager()
         self.audio_manager = AudioManager(
             rate=Config.VOICE_RATE,
             volume=Config.VOICE_VOLUME
@@ -519,24 +521,72 @@ class MainWindow:
         )
         self.confidence_label.pack()
         
-        # Área de texto (MÁS COMPACTA)
+        # Área de texto (DIVIDIDA EN DOS SECCIONES)
         text_frame = tk.Frame(right_frame, bg='white')
         text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
         
+        # ===== SECCIÓN 1: PALABRA ACTUAL =====
+        current_word_section = tk.Frame(text_frame, bg='white')
+        current_word_section.pack(fill=tk.X, pady=(0, 5))
+        
         tk.Label(
-            text_frame,
-            text="📝 Texto Formado",
+            current_word_section,
+            text="✍️ Palabra Actual",
             bg='white',
             fg=self.COLORS['text_dark'],
-            font=('Segoe UI', 10, 'bold')
-        ).pack(anchor=tk.W, pady=3)
+            font=('Segoe UI', 9, 'bold')
+        ).pack(anchor=tk.W, pady=2)
         
-        text_container = tk.Frame(text_frame, bg=self.COLORS['border'], relief='flat', bd=1)
-        text_container.pack(fill=tk.X)
+        # Campo de palabra actual (más destacado)
+        current_word_container = tk.Frame(current_word_section, bg=self.COLORS['secondary'], relief='flat', bd=2)
+        current_word_container.pack(fill=tk.X)
         
-        self.word_text = tk.Text(
-            text_container,
-            height=3,
+        self.current_word_text = tk.Text(
+            current_word_container,
+            height=1,
+            font=('Consolas', 14, 'bold'),
+            wrap=tk.WORD,
+            bg='white',
+            fg=self.COLORS['primary'],
+            relief='flat',
+            padx=10,
+            pady=5
+        )
+        self.current_word_text.pack(fill=tk.X, padx=2, pady=2)
+        
+        # ===== SECCIÓN 2: ORACIÓN COMPLETA =====
+        sentence_section = tk.Frame(text_frame, bg='white')
+        sentence_section.pack(fill=tk.X, pady=(5, 0))
+        
+        # Header con contador
+        sentence_header = tk.Frame(sentence_section, bg='white')
+        sentence_header.pack(fill=tk.X)
+        
+        tk.Label(
+            sentence_header,
+            text="📝 Oración Completa",
+            bg='white',
+            fg=self.COLORS['text_dark'],
+            font=('Segoe UI', 9, 'bold')
+        ).pack(side=tk.LEFT, pady=2)
+        
+        # Contador de palabras
+        self.word_count_label = tk.Label(
+            sentence_header,
+            text="0 palabras",
+            bg='white',
+            fg=self.COLORS['border'],
+            font=('Segoe UI', 8, 'italic')
+        )
+        self.word_count_label.pack(side=tk.RIGHT, pady=2)
+        
+        # Campo de oración completa
+        sentence_container = tk.Frame(sentence_section, bg=self.COLORS['border'], relief='flat', bd=1)
+        sentence_container.pack(fill=tk.X)
+        
+        self.sentence_text = tk.Text(
+            sentence_container,
+            height=2,
             font=('Consolas', 11),
             wrap=tk.WORD,
             bg='white',
@@ -545,11 +595,14 @@ class MainWindow:
             padx=8,
             pady=5
         )
-        self.word_text.pack(fill=tk.X, padx=2, pady=2)
+        self.sentence_text.pack(fill=tk.X, padx=2, pady=2)
         
-        # IMPORTANTE: Bind para actualizar sugerencias
-        self.word_text.bind('<KeyRelease>', self.on_text_change)
-        self.word_text.bind('<<Modified>>', self.on_text_modified)
+        # IMPORTANTE: Mantener el word_text para compatibilidad (apunta a sentence_text)
+        self.word_text = self.sentence_text
+        
+        # Bind para actualizar sugerencias
+        self.current_word_text.bind('<KeyRelease>', self.on_text_change)
+        self.sentence_text.bind('<KeyRelease>', self.on_text_change)
         
         # Botones de texto (MÁS COMPACTOS)
         text_buttons_frame = tk.Frame(text_frame, bg='white')
@@ -571,17 +624,31 @@ class MainWindow:
         
         space_btn = tk.Button(
             text_buttons_frame,
-            text="Espacio",
-            command=self.add_space,
-            bg=self.COLORS['border'],
-            fg=self.COLORS['text_dark'],
+            text="⎵ Espacio",
+            command=self.confirm_word,
+            bg=self.COLORS['accent'],
+            fg='white',
+            font=('Segoe UI', 8, 'bold'),
+            relief='flat',
+            padx=12,
+            pady=4,
+            cursor='hand2'
+        )
+        space_btn.pack(side=tk.LEFT, padx=2)
+        
+        undo_btn = tk.Button(
+            text_buttons_frame,
+            text="↶ Deshacer",
+            command=self.undo_last_word,
+            bg=self.COLORS['warning'],
+            fg='white',
             font=('Segoe UI', 8),
             relief='flat',
             padx=8,
             pady=4,
             cursor='hand2'
         )
-        space_btn.pack(side=tk.RIGHT, padx=2)
+        undo_btn.pack(side=tk.RIGHT, padx=2)
 
         # ========== SUGERENCIAS (COMPACTAS Y VISIBLES) ==========
         suggestions_container = tk.Frame(text_frame, bg='white')
@@ -1264,11 +1331,10 @@ class MainWindow:
             self.show_control_feedback_message("🗑️ Texto limpiado")
     
     def delete_last_letter(self):
-        """Borra la última letra del texto"""
-        current_text = self.word_text.get(1.0, tk.END)
-        if len(current_text) > 1:
-            self.word_text.delete("end-2c", "end-1c")
-            self.word_text.see(tk.END)
+        """Borra la última letra usando el gestor"""
+        if self.word_sentence_manager.delete_last_letter():
+            self.update_text_display()
+            self.status_var.set("⌫ Letra borrada")
     
     def toggle_pause_detection(self):
         """Pausa/reanuda la detección temporalmente"""
@@ -1284,8 +1350,8 @@ class MainWindow:
             if hasattr(self, '_suggestion_timer'):
                 self.root.after_cancel(self._suggestion_timer)
             
-            # Programar actualización después de 300ms (para no saturar)
-            self._suggestion_timer = self.root.after(300, self.update_suggestions)
+            # Programar actualización después de 500ms (más tiempo para que no parpadee)
+            self._suggestion_timer = self.root.after(500, self.update_suggestions)
     
     def on_text_modified(self, event=None):
         """Callback cuando se modifica el texto (cualquier cambio)"""
@@ -1293,14 +1359,16 @@ class MainWindow:
         self.word_text.edit_modified(False)
     
     def update_suggestions(self):
-        """Actualiza las sugerencias basadas en el texto actual"""
+        """Actualiza las sugerencias basadas en la PALABRA ACTUAL"""
         try:
-            current_text = self.word_text.get(1.0, tk.END).strip()
+            # Obtener la palabra actual del gestor
+            current_word = self.word_sentence_manager.get_current_word()
             
-            if current_text:
+            if current_word and len(current_word) >= 2:
                 # Obtener sugerencias del WordSuggester
-                self.current_suggestions = self.word_suggester.update_current_word(current_text)
+                self.current_suggestions = self.word_suggester.update_current_word(current_word)
             else:
+                # Si no hay palabra o es muy corta, limpiar sugerencias
                 self.current_suggestions = []
             
             # Actualizar botones de sugerencias
@@ -1310,44 +1378,41 @@ class MainWindow:
             print(f"Error actualizando sugerencias: {e}")
     
     def apply_suggestion(self, suggestion: str):
-        """Aplica una sugerencia seleccionada"""
-        current_text = self.word_text.get(1.0, tk.END).strip()
-        new_text = self.word_suggester.complete_word(suggestion, current_text)
+        """Aplica una sugerencia seleccionada - reemplaza la palabra actual"""
+        # Limpiar palabra actual
+        self.word_sentence_manager.clear_current_word()
         
-        self.word_text.delete(1.0, tk.END)
-        self.word_text.insert(1.0, new_text)
-        self.word_text.see(tk.END)
+        # Agregar cada letra de la sugerencia
+        for letter in suggestion:
+            self.word_sentence_manager.add_letter(letter)
         
-        self.current_suggestions = []
-        self.update_suggestion_buttons()
+        # Actualizar display
+        self.update_text_display()
         
-        self.status_var.set(f"✓ Palabra completada: {suggestion}")
+        self.status_var.set(f"✓ Sugerencia aplicada: {suggestion}")
     
     def apply_quick_word(self, word: str):
-        """Aplica una palabra rápida"""
-        current_text = self.word_text.get(1.0, tk.END).strip()
+        """Aplica una palabra rápida - la agrega directamente a la oración"""
+        # Limpiar palabra actual si existe
+        self.word_sentence_manager.clear_current_word()
         
-        if current_text and not current_text.endswith(' '):
-            new_text = current_text + ' ' + word + ' '
-        else:
-            new_text = current_text + word + ' '
+        # Agregar la palabra a la oración directamente
+        for letter in word:
+            self.word_sentence_manager.add_letter(letter)
         
-        self.word_text.delete(1.0, tk.END)
-        self.word_text.insert(1.0, new_text)
-        self.word_text.see(tk.END)
+        # Confirmar la palabra (agregar espacio)
+        self.word_sentence_manager.add_space()
         
-        self.status_var.set(f"✓ Palabra agregada: {word}")
+        # Actualizar display
+        self.update_text_display()
+        
+        self.status_var.set(f"✓ Palabra rápida agregada: {word}")
     
     def apply_phrase(self, phrase: str):
-        """Aplica una frase completa"""
-        current_text = self.word_text.get(1.0, tk.END).strip()
-        new_text = self.word_suggester.add_phrase(phrase, current_text)
-        
-        self.word_text.delete(1.0, tk.END)
-        self.word_text.insert(1.0, new_text)
-        self.word_text.see(tk.END)
-        
-        self.status_var.set(f"✓ Frase agregada: {phrase}")
+        """Aplica una frase completa usando el gestor"""
+        if self.word_sentence_manager.add_complete_sentence(phrase):
+            self.update_text_display()
+            self.status_var.set(f"✓ Frase agregada: {phrase}")
     
     def update_suggestion_buttons(self):
         """Actualiza los botones de sugerencias dinámicas"""
@@ -1404,45 +1469,98 @@ class MainWindow:
             self.status_var.set("✓ Auto-espacio agregado")
     
     def auto_add_letter(self, letter):
-        """Auto-agrega letra y actualiza sugerencias inmediatamente"""
+        """Auto-agrega letra usando el gestor"""
         if letter and letter != "-":
-            self.word_text.insert(tk.END, letter)
-            self.word_text.see(tk.END)
-            self.status_var.set(f"✓ Auto-agregado: {letter}")
-            
-            # IMPORTANTE: Actualizar sugerencias después de auto-agregar
-            if self.suggestions_enabled:
-                self.root.after(100, self.update_suggestions)  # Pequeño delay
-            
-            self.root.after(1000, lambda: self.status_var.set("🔴 Detectando gestos...") 
-                           if self.is_running else None)
+            # Agregar al gestor
+            if self.word_sentence_manager.add_letter(letter):
+                self.update_text_display()
+                self.status_var.set(f"✓ Auto-agregado: {letter}")
+                
+                # Actualizar sugerencias
+                if self.suggestions_enabled:
+                    self.root.after(100, self.update_suggestions)
+                
+                self.root.after(1000, lambda: self.status_var.set("🔴 Detectando gestos...") 
+                               if self.is_running else None)
     
     def add_letter_to_word(self):
-        """Agrega letra manualmente y actualiza sugerencias"""
+        """Agrega letra manualmente usando el gestor"""
         if self.detected_letter and self.detected_letter != "-":
-            self.word_text.insert(tk.END, self.detected_letter)
-            self.word_text.see(tk.END)
-            
-            # IMPORTANTE: Actualizar sugerencias después de agregar letra
-            if self.suggestions_enabled:
-                self.root.after(100, self.update_suggestions)  # Pequeño delay para que se procese el texto
+            if self.word_sentence_manager.add_letter(self.detected_letter):
+                self.update_text_display()
+                
+                # Actualizar sugerencias
+                if self.suggestions_enabled:
+                    self.root.after(100, self.update_suggestions)
     
-    def add_space(self):
-        self.word_text.insert(tk.END, " ")
-        self.word_text.see(tk.END)
+    def update_text_display(self):
+        """Actualiza la visualización de palabra actual y oración"""
+        try:
+            # Actualizar palabra actual
+            current_word = self.word_sentence_manager.get_current_word()
+            self.current_word_text.delete(1.0, tk.END)
+            if current_word:
+                self.current_word_text.insert(1.0, current_word)
+            
+            # Actualizar oración completa
+            sentence = self.word_sentence_manager.get_complete_sentence()
+            self.sentence_text.delete(1.0, tk.END)
+            if sentence:
+                self.sentence_text.insert(1.0, sentence)
+            
+            # Actualizar contador de palabras
+            stats = self.word_sentence_manager.get_statistics()
+            word_count = stats['sentence_word_count']
+            self.word_count_label.config(text=f"{word_count} palabras")
+            
+            # Actualizar sugerencias solo si hay palabra actual con más de 1 letra
+            if current_word and len(current_word) >= 2:
+                self.current_suggestions = self.word_suggester.update_current_word(current_word)
+                self.update_suggestion_buttons()
+            elif not current_word:
+                # Si no hay palabra actual, limpiar sugerencias
+                self.current_suggestions = []
+                self.update_suggestion_buttons()
+            
+        except Exception as e:
+            print(f"Error actualizando display: {e}")
+    
+    def confirm_word(self):
+        """Confirma la palabra actual y la agrega a la oración (botón ESPACIO)"""
+        if self.word_sentence_manager.add_space():
+            self.update_text_display()
+            self.status_var.set("✓ Palabra agregada a la oración")
+            # Limpiar sugerencias
+            self.current_suggestions = []
+            self.update_suggestion_buttons()
+        else:
+            self.status_var.set("⚠ No hay palabra para agregar")
+    
+    def undo_last_word(self):
+        """Deshace la última palabra agregada"""
+        if self.word_sentence_manager.undo_last_word():
+            self.update_text_display()
+            self.status_var.set("↶ Última palabra deshecha")
+        else:
+            self.status_var.set("⚠ No hay nada para deshacer")
     
     def clear_text(self):
-        self.word_text.delete(1.0, tk.END)
+        """Limpia todo el texto usando el gestor"""
+        self.word_sentence_manager.clear_all()
+        self.update_text_display()
         self.letter_var.set("-")
         self.detected_letter = ""
         self.current_suggestions = []
         self.update_suggestion_buttons()
+        self.status_var.set("✓ Texto limpiado")
     
     def speak_text(self):
-        text = self.word_text.get(1.0, tk.END).strip()
+        """Reproduce el texto completo usando TTS"""
+        text = self.word_sentence_manager.finalize_sentence()
         if text:
             self.audio_manager.speak(text)
             self.status_var.set(f"🔊 Reproduciendo: {text}")
+            self.update_text_display()
         else:
             messagebox.showinfo("Información", "No hay texto para reproducir")
     
