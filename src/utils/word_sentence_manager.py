@@ -83,24 +83,103 @@ class WordSentenceManager:
             return True
         return False
     
-    def add_complete_sentence(self, sentence):
+    def add_complete_sentence(self, text: str) -> bool:
         """
-        Agrega una oración completa directamente (del banco de oraciones)
-        """
-        sentence = sentence.strip()
-        if sentence:
-            if self.complete_sentence:
-                self.complete_sentence += " " + sentence
-            else:
-                self.complete_sentence = sentence
+        Agrega una oración o palabra completa directamente
+        
+        MEJORADO: Ahora maneja tanto palabras únicas como oraciones completas
+        
+        Args:
+            text: Texto completo a agregar (puede ser una palabra o varias)
             
-            # Agregar al historial de oraciones
-            if sentence not in self.sentence_history:
-                self.sentence_history.insert(0, sentence)
+        Returns:
+            True si se agregó exitosamente
+        """
+        if not text:
+            return False
+        
+        try:
+            text = text.strip().upper()
+            
+            # Limpiar palabra actual si existe
+            self.clear_current_word()
+            
+            # Verificar si es una sola palabra o múltiples
+            words = text.split()
+            
+            if len(words) == 1:
+                # Es una sola palabra - agregarla como palabra actual y confirmar
+                word = words[0]
+                
+                # Agregar letra por letra
+                for letter in word:
+                    self.add_letter(letter)
+                
+                # Confirmar la palabra (agregar espacio)
+                self.add_space()
+                
+                print(f"[DEBUG WordSentenceManager] Palabra única agregada: {word}")
+                
+            else:
+                # Son múltiples palabras - agregar cada una
+                for word in words:
+                    # Agregar letra por letra
+                    for letter in word:
+                        self.add_letter(letter)
+                    
+                    # Confirmar la palabra
+                    self.add_space()
+                
+                print(f"[DEBUG WordSentenceManager] Oración completa agregada: {text}")
+            
+            # Agregar al historial de oraciones si no es una palabra muy corta
+            if len(text) > 3 and text not in self.sentence_history:
+                self.sentence_history.insert(0, text)
                 self.sentence_history = self.sentence_history[:10]
             
             return True
-        return False
+            
+        except Exception as e:
+            print(f"[ERROR WordSentenceManager] Error agregando texto completo: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def add_word_by_gesture(self, word: str) -> bool:
+        """
+        NUEVO: Método específico para palabras detectadas por gesto
+        Las agrega directamente a la oración
+        
+        Args:
+            word: Palabra detectada por gesto (ej: "HOLA", "GRACIAS")
+            
+        Returns:
+            True si se agregó exitosamente
+        """
+        if not word:
+            return False
+        
+        try:
+            word = word.strip().upper()
+            
+            # Limpiar palabra actual
+            self.clear_current_word()
+            
+            # Agregar letra por letra a la palabra actual
+            for letter in word:
+                self.current_word += letter
+            
+            # Confirmar inmediatamente (agregar a oración completa)
+            success = self.add_space()
+            
+            if success:
+                print(f"[DEBUG WordSentenceManager] Palabra por gesto agregada: {word}")
+            
+            return success
+            
+        except Exception as e:
+            print(f"[ERROR WordSentenceManager] Error agregando palabra por gesto: {e}")
+            return False
     
     def clear_current_word(self):
         """
