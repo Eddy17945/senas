@@ -1,5 +1,5 @@
 # src/interface/main_window.py
-# VERSIÓN OPTIMIZADA CON DISEÑO MODERNO Y PALABRAS COMPLETAS
+# VERSIÓN COMPLETA: Palabras Completas + Sílabas + Letras
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -25,31 +25,27 @@ from ..config.settings import Config
 class MainWindow:
     # PALETA DE COLORES MODERNA
     COLORS = {
-        'primary': '#2563EB',      # Azul principal
-        'secondary': '#3B82F6',    # Azul claro
-        'accent': '#10B981',       # Verde éxito
-        'danger': '#EF4444',       # Rojo
-        'warning': '#F59E0B',      # Amarillo/Naranja
-        'bg_dark': '#1E293B',      # Fondo oscuro
-        'bg_light': '#F8FAFC',     # Fondo claro
-        'text_dark': '#0F172A',    # Texto oscuro
-        'text_light': '#F8FAFC',   # Texto claro
-        'border': '#CBD5E1',       # Bordes
-        'hover': '#1E40AF',        # Hover azul oscuro
+        'primary': '#2563EB',
+        'secondary': '#3B82F6',
+        'accent': '#10B981',
+        'danger': '#EF4444',
+        'warning': '#F59E0B',
+        'bg_dark': '#1E293B',
+        'bg_light': '#F8FAFC',
+        'text_dark': '#0F172A',
+        'text_light': '#F8FAFC',
+        'border': '#CBD5E1',
+        'hover': '#1E40AF',
     }
     
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("🤟 " + Config.WINDOW_TITLE)
         
-        # TAMAÑO INICIAL MÁS GRANDE Y APROPIADO
         self.root.geometry("1400x800")
-        
-        # Tamaño mínimo apropiado
         self.root.minsize(1200, 700)
         self.root.resizable(True, True)
         
-        # Configurar tema de colores
         self.setup_styles()
         self.root.configure(bg=self.COLORS['bg_light'])
         
@@ -73,7 +69,7 @@ class MainWindow:
         self.syllable_classifier = SyllableClassifier()
         self.gesture_calibrator = GestureCalibrator()
         self.gesture_controls = GestureControls()
-        self.complete_word_detector = CompleteWordDetector()  # NUEVO
+        self.complete_word_detector = CompleteWordDetector()
         self.word_dictionary = WordDictionary()
         self.word_suggester = WordSuggester()
         self.sentence_bank = SentenceBank()
@@ -114,7 +110,7 @@ class MainWindow:
         self.current_suggestions = []
         self.suggestions_enabled = True
         
-        # NUEVO: Variables para palabras completas
+        # Variables para palabras completas
         self.complete_word_mode_enabled = True
         self.last_complete_word = ""
         
@@ -130,7 +126,6 @@ class MainWindow:
         style = ttk.Style()
         style.theme_use('clam')
         
-        # Estilo para botones principales
         style.configure(
             'Primary.TButton',
             background=self.COLORS['primary'],
@@ -144,7 +139,6 @@ class MainWindow:
                  background=[('active', self.COLORS['hover'])],
                  foreground=[('active', 'white')])
         
-        # Estilo para botones de éxito
         style.configure(
             'Success.TButton',
             background=self.COLORS['accent'],
@@ -156,7 +150,6 @@ class MainWindow:
         style.map('Success.TButton',
                  background=[('active', '#059669')])
         
-        # Estilo para botones de peligro
         style.configure(
             'Danger.TButton',
             background=self.COLORS['danger'],
@@ -168,7 +161,6 @@ class MainWindow:
         style.map('Danger.TButton',
                  background=[('active', '#DC2626')])
         
-        # Estilo para frames
         style.configure(
             'Card.TFrame',
             background='white',
@@ -188,7 +180,6 @@ class MainWindow:
             font=('Segoe UI', 11, 'bold')
         )
         
-        # Estilo para labels
         style.configure(
             'Title.TLabel',
             background='white',
@@ -203,7 +194,6 @@ class MainWindow:
             font=('Segoe UI', 10)
         )
         
-        # Estilo para radio buttons
         style.configure(
             'TRadiobutton',
             background='white',
@@ -211,7 +201,6 @@ class MainWindow:
             font=('Segoe UI', 9)
         )
         
-        # Estilo para checkbuttons
         style.configure(
             'TCheckbutton',
             background='white',
@@ -221,15 +210,13 @@ class MainWindow:
     
     def setup_ui(self):
         """Configura la interfaz de usuario moderna"""
-        # Frame principal con padding
         main_frame = tk.Frame(self.root, bg=self.COLORS['bg_light'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # ========== HEADER - TÍTULO Y CONTROLES PRINCIPALES ==========
+        # HEADER
         header_frame = tk.Frame(main_frame, bg='white', relief='raised', bd=2)
         header_frame.pack(fill=tk.X, pady=(0, 15))
         
-        # Título principal
         title_label = tk.Label(
             header_frame,
             text="🤟 Traductor de Lenguaje de Señas",
@@ -239,11 +226,9 @@ class MainWindow:
         )
         title_label.pack(pady=15)
         
-        # Frame de controles principales
         control_frame = tk.Frame(header_frame, bg='white')
         control_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
         
-        # Botones principales con colores
         buttons_frame = tk.Frame(control_frame, bg='white')
         buttons_frame.pack(side=tk.LEFT)
         
@@ -335,7 +320,7 @@ class MainWindow:
         )
         syllables_radio.pack(anchor=tk.W, padx=10, pady=2)
         
-        # Configuración rápida
+        # Configuración
         config_frame = tk.LabelFrame(
             control_frame,
             text="⚙ Configuración",
@@ -373,7 +358,6 @@ class MainWindow:
         )
         auto_space_check.pack(anchor=tk.W, padx=10, pady=2)
         
-        # NUEVO: Checkbox para palabras completas
         self.complete_word_var = tk.BooleanVar(value=True)
         complete_word_check = tk.Checkbutton(
             config_frame,
@@ -387,7 +371,7 @@ class MainWindow:
         )
         complete_word_check.pack(anchor=tk.W, padx=10, pady=2)
         
-        # ========== CONTENIDO PRINCIPAL ==========
+        # CONTENIDO PRINCIPAL
         content_frame = tk.Frame(main_frame, bg=self.COLORS['bg_light'])
         content_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -407,7 +391,6 @@ class MainWindow:
             font=('Segoe UI', 12, 'bold')
         ).pack(pady=8)
         
-        # VIDEO LABEL - simple y funcional
         self.video_label = tk.Label(
             left_frame,
             text="Presiona 'Iniciar' para comenzar",
@@ -421,7 +404,6 @@ class MainWindow:
         controls_frame = tk.Frame(left_frame, bg='white')
         controls_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        # Velocidad
         vel_frame = tk.Frame(controls_frame, bg='white')
         vel_frame.pack(side=tk.LEFT, padx=10)
         
@@ -448,7 +430,6 @@ class MainWindow:
         )
         speed_scale.pack()
         
-        # Sensibilidad
         sens_frame = tk.Frame(controls_frame, bg='white')
         sens_frame.pack(side=tk.LEFT, padx=10)
         
@@ -522,7 +503,6 @@ class MainWindow:
         
         self.confidence_var = tk.DoubleVar()
         
-        # Canvas para barra de progreso
         self.confidence_canvas = tk.Canvas(
             confidence_frame,
             height=15,
@@ -545,7 +525,7 @@ class MainWindow:
         text_frame = tk.Frame(right_frame, bg='white')
         text_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=3)
         
-        # SECCIÓN 1: PALABRA ACTUAL
+        # PALABRA ACTUAL
         current_word_section = tk.Frame(text_frame, bg='white')
         current_word_section.pack(fill=tk.X, pady=(0, 3))
         
@@ -573,7 +553,7 @@ class MainWindow:
         )
         self.current_word_text.pack(fill=tk.X, padx=2, pady=2)
         
-        # SECCIÓN 2: ORACIÓN COMPLETA
+        # ORACIÓN COMPLETA
         sentence_section = tk.Frame(text_frame, bg='white')
         sentence_section.pack(fill=tk.X, pady=(3, 0))
         
@@ -613,10 +593,8 @@ class MainWindow:
         )
         self.sentence_text.pack(fill=tk.X, padx=2, pady=2)
         
-        # Mantener word_text para compatibilidad
         self.word_text = self.sentence_text
         
-        # Bind para actualizar sugerencias
         self.current_word_text.bind('<KeyRelease>', self.on_text_change)
         self.sentence_text.bind('<KeyRelease>', self.on_text_change)
         
@@ -690,10 +668,8 @@ class MainWindow:
             font=('Segoe UI', 7, 'italic')
         ).pack()
         
-        # Separador
         tk.Frame(suggestions_container, bg=self.COLORS['border'], height=1).pack(fill=tk.X, pady=5)
         
-        # Botón frases
         phrases_btn = tk.Button(
             suggestions_container,
             text="📝 Ver Frases Completas",
@@ -734,7 +710,6 @@ class MainWindow:
         )
         counter_label.pack(side=tk.RIGHT, padx=15, pady=5)
         
-        # Botones de herramientas
         tools_buttons_frame = tk.Frame(status_bar, bg=self.COLORS['bg_dark'])
         tools_buttons_frame.pack(side=tk.RIGHT, padx=10)
         
@@ -787,7 +762,7 @@ class MainWindow:
         letters_btn.bind('<Leave>', lambda e: letters_btn.config(bg=self.COLORS['primary']))
 
     def show_phrases_window(self):
-        """Muestra ventana del banco de oraciones con categorías"""
+        """Muestra ventana del banco de oraciones"""
         phrases_window = tk.Toplevel(self.root)
         phrases_window.title("📚 Banco de Oraciones")
         phrases_window.geometry("800x700")
@@ -988,7 +963,7 @@ class MainWindow:
         try:
             print(f"[DEBUG] Palabra completa detectada: {word}")
             
-            if self.word_sentence_manager.add_complete_sentence(word):
+            if self.word_sentence_manager.add_word_by_gesture(word):
                 self.update_text_display()
                 self.last_complete_word = word
                 self.status_var.set(f"⚡ PALABRA: {word}")
@@ -1277,7 +1252,7 @@ class MainWindow:
         self.status_var.set("✓ Detección detenida")
     
     def detection_loop(self):
-        """BUCLE PRINCIPAL DE DETECCIÓN - CON PALABRAS COMPLETAS"""
+        """BUCLE PRINCIPAL - Palabras Completas + Sílabas + Letras"""
         while self.is_running:
             try:
                 ret, frame = self.cap.read()
@@ -1291,7 +1266,7 @@ class MainWindow:
                 control_result = None
                 complete_word_result = None
                 
-                # ===== 1. DETECTAR PALABRAS COMPLETAS (PRIORIDAD MÁXIMA) =====
+                # PRIORIDAD 1: PALABRAS COMPLETAS
                 if (self.complete_word_mode_enabled and 
                     hands_data['landmarks_list'] and 
                     len(hands_data['landmarks_list']) > 0):
@@ -1311,7 +1286,7 @@ class MainWindow:
                         self.update_ui(processed_frame, None, hands_data, None)
                         continue
                 
-                # ===== 2. DETECTAR GESTOS DE CONTROL =====
+                # PRIORIDAD 2: GESTOS DE CONTROL
                 if hands_data['landmarks_list']:
                     for landmarks in hands_data['landmarks_list']:
                         control_gesture = self.gesture_classifier.detect_control_gesture(landmarks)
@@ -1326,7 +1301,7 @@ class MainWindow:
                                 self.execute_control_gesture(control_result)
                                 break
                 
-                # ===== 3. DETECTAR LETRAS/SÍLABAS =====
+                # PRIORIDAD 3: LETRAS/SÍLABAS
                 if not control_result:
                     if self.detection_mode == "syllables":
                         if hands_data['left'] and hands_data['right']:
@@ -1417,40 +1392,60 @@ class MainWindow:
         self.update_confidence_bar(confidence * 100)
     
     def update_syllable_display(self, detected_syllable, hands_data):
+        """Actualiza el display cuando se detecta una sílaba - CORREGIDO"""
         if detected_syllable and detected_syllable != self.detected_syllable:
+            # IMPORTANTE: Actualizar la variable de instancia
             self.detected_syllable = detected_syllable
+            
+            # Actualizar el label con la sílaba
             self.letter_var.set(detected_syllable)
+            
+            # Incrementar contador
             self.detection_count += 1
             self.detection_counter_var.set(f"Sílabas: {self.detection_count}")
+            
+            print(f"[DEBUG] Sílaba detectada y mostrada: {detected_syllable}")
+            
         elif not detected_syllable:
-            left_status = "✓" if hands_data['left'] else "✗"
-            right_status = "✓" if hands_data['right'] else "✗"
+            # Si no hay detección, mostrar estado de las manos
+            left_status = "✓" if hands_data.get('left') else "✗"
+            right_status = "✓" if hands_data.get('right') else "✗"
             self.letter_var.set(f"L:{left_status} R:{right_status}")
+            
+            # Limpiar la variable si no hay detección
+            self.detected_syllable = ""
         
+        # Actualizar barra de confianza
         confidence = self.syllable_classifier.get_detection_confidence()
         self.confidence_var.set(confidence * 100)
         self.confidence_label.config(text=f"{confidence*100:.1f}%")
         self.update_confidence_bar(confidence * 100)
     
-    def handle_auto_add_logic(self, detected_letter):
+    def handle_auto_add_logic(self, detected_result):
+        """Maneja auto-agregado para LETRAS Y SÍLABAS - CORREGIDO"""
         if self.cooldown_count > 0:
             self.cooldown_count -= 1
             return
         
-        if detected_letter and detected_letter != "-":
+        if detected_result and detected_result != "-":
             self.no_detection_count = 0
             
-            if detected_letter == self.last_stable_letter:
+            if detected_result == self.last_stable_letter:
                 self.stable_letter_count += 1
             else:
-                self.last_stable_letter = detected_letter
+                self.last_stable_letter = detected_result
                 self.stable_letter_count = 1
             
-            if (self.stable_letter_count >= self.auto_add_threshold and 
-                detected_letter != self.last_added_letter):
+            # Ajustar umbral según si es letra o sílaba
+            threshold = self.auto_add_threshold
+            if len(detected_result) > 1:  # Es una sílaba
+                threshold = self.auto_add_threshold + 5
+            
+            if (self.stable_letter_count >= threshold and 
+                detected_result != self.last_added_letter):
                 
-                self.auto_add_letter(detected_letter)
-                self.last_added_letter = detected_letter
+                self.auto_add_letter(detected_result)
+                self.last_added_letter = detected_result
                 self.stable_letter_count = 0
                 self.cooldown_count = self.cooldown_threshold
                 
@@ -1519,7 +1514,7 @@ class MainWindow:
             print(f"Error actualizando sugerencias: {e}")
     
     def apply_suggestion(self, suggestion: str):
-        """Aplica una sugerencia seleccionada - reemplaza la palabra actual"""
+        """Aplica una sugerencia seleccionada"""
         self.word_sentence_manager.clear_current_word()
         
         for letter in suggestion:
@@ -1529,7 +1524,7 @@ class MainWindow:
         self.status_var.set(f"✓ Sugerencia aplicada: {suggestion}")
     
     def apply_quick_word(self, word: str):
-        """Aplica una palabra rápida - la agrega directamente a la oración"""
+        """Aplica una palabra rápida"""
         self.word_sentence_manager.clear_current_word()
         
         for letter in word:
@@ -1540,13 +1535,13 @@ class MainWindow:
         self.status_var.set(f"✓ Palabra rápida agregada: {word}")
     
     def apply_phrase(self, phrase: str):
-        """Aplica una frase completa usando el gestor"""
+        """Aplica una frase completa"""
         if self.word_sentence_manager.add_complete_sentence(phrase):
             self.update_text_display()
             self.status_var.set(f"✓ Frase agregada: {phrase}")
     
     def update_suggestion_buttons(self):
-        """Actualiza los botones de sugerencias dinámicas"""
+        """Actualiza los botones de sugerencias"""
         for widget in self.suggestions_frame.winfo_children():
             widget.destroy()
         
@@ -1577,7 +1572,7 @@ class MainWindow:
             ).pack(pady=5)
     
     def show_control_feedback_message(self, message: str):
-        """Muestra mensaje de feedback visual del control ejecutado"""
+        """Muestra mensaje de feedback"""
         self.control_feedback_text = message
         self.show_control_feedback = True
         self.status_var.set(message)
@@ -1597,26 +1592,59 @@ class MainWindow:
             self.status_var.set("✓ Auto-espacio agregado")
     
     def auto_add_letter(self, letter):
-        """Auto-agrega letra usando el gestor"""
+        """Auto-agrega letra O SÍLABA - CORREGIDO"""
         if letter and letter != "-":
-            if self.word_sentence_manager.add_letter(letter):
-                self.update_text_display()
-                self.status_var.set(f"✓ Auto-agregado: {letter}")
-                
-                if self.suggestions_enabled:
-                    self.root.after(100, self.update_suggestions)
-                
-                self.root.after(1000, lambda: self.status_var.set("🔴 Detectando gestos...") 
-                               if self.is_running else None)
+            # Verificar si es una sílaba (más de 1 carácter) o una letra
+            if len(letter) > 1:
+                # Es una sílaba - agregar cada letra
+                print(f"[DEBUG] Auto-agregando SÍLABA: {letter}")
+                for char in letter:
+                    if self.word_sentence_manager.add_letter(char):
+                        print(f"[DEBUG] Letra '{char}' agregada de sílaba '{letter}'")
+            else:
+                # Es una letra individual
+                print(f"[DEBUG] Auto-agregando LETRA: {letter}")
+                self.word_sentence_manager.add_letter(letter)
+            
+            # Actualizar display
+            self.update_text_display()
+            self.status_var.set(f"✓ Auto-agregado: {letter}")
+            
+            # Actualizar sugerencias
+            if self.suggestions_enabled:
+                self.root.after(100, self.update_suggestions)
+            
+            self.root.after(1000, lambda: self.status_var.set("🔴 Detectando gestos...") 
+                           if self.is_running else None)
     
     def add_letter_to_word(self):
-        """Agrega letra manualmente usando el gestor"""
-        if self.detected_letter and self.detected_letter != "-":
-            if self.word_sentence_manager.add_letter(self.detected_letter):
-                self.update_text_display()
-                
-                if self.suggestions_enabled:
-                    self.root.after(100, self.update_suggestions)
+        """Agrega letra O SÍLABA manualmente - CORREGIDO"""
+        detected = None
+        
+        # Verificar qué modo estamos usando
+        if self.detection_mode == "syllables":
+            detected = self.detected_syllable
+        else:
+            detected = self.detected_letter
+        
+        if detected and detected != "-":
+            # Verificar si es sílaba o letra
+            if len(detected) > 1:
+                # Es una sílaba - agregar cada letra
+                print(f"[DEBUG] Agregando manualmente SÍLABA: {detected}")
+                for char in detected:
+                    self.word_sentence_manager.add_letter(char)
+            else:
+                # Es una letra individual
+                print(f"[DEBUG] Agregando manualmente LETRA: {detected}")
+                self.word_sentence_manager.add_letter(detected)
+            
+            # Actualizar display
+            self.update_text_display()
+            
+            # Actualizar sugerencias
+            if self.suggestions_enabled:
+                self.root.after(100, self.update_suggestions)
     
     def add_space(self):
         """Agrega espacio (confirma palabra)"""
@@ -1653,7 +1681,7 @@ class MainWindow:
             print(f"Error actualizando display: {e}")
     
     def confirm_word(self):
-        """Confirma la palabra actual y la agrega a la oración (botón ESPACIO)"""
+        """Confirma la palabra actual"""
         if self.word_sentence_manager.add_space():
             self.update_text_display()
             self.status_var.set("✓ Palabra agregada a la oración")
@@ -1671,11 +1699,12 @@ class MainWindow:
             self.status_var.set("⚠ No hay nada para deshacer")
     
     def clear_text(self):
-        """Limpia todo el texto usando el gestor"""
+        """Limpia todo el texto"""
         self.word_sentence_manager.clear_all()
         self.update_text_display()
         self.letter_var.set("-")
         self.detected_letter = ""
+        self.detected_syllable = ""
         self.current_suggestions = []
         self.update_suggestion_buttons()
         self.status_var.set("✓ Texto limpiado")

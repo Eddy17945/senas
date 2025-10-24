@@ -519,31 +519,42 @@ class GestureClassifier:
         ring_tip = lm[16]
         pinky_tip = lm[20]
         wrist = lm[0]
+        thumb_ip = lm[3]
         
         # ===== GESTO: BORRAR (DELETE) =====
         # Mano cerrada en puño CON pulgar extendido hacia la izquierda
         # Como si dijeras "NO" con el pulgar
-        if (not f['index_ext'] and not f['middle_ext'] and 
-            not f['ring_ext'] and not f['pinky_ext'] and
-            f['thumb_ext'] and 
-            thumb_tip[0] < wrist[0] - 0.08 and  # Pulgar muy a la izquierda
-            abs(thumb_tip[1] - wrist[1]) < 0.05):  # A la altura de la muñeca
-            return "DELETE"
+
+
+        delete_check1 = (not f['index_ext'] and not f['middle_ext'] and 
+                     not f['ring_ext'] and not f['pinky_ext'] and
+                     f['thumb_ext'])
+    
+        delete_check2 = (thumb_tip[0] < wrist[0] - 0.06)  # Pulgar a la izquierda
+    
+        delete_check3 = (abs(thumb_tip[1] - wrist[1]) < 0.08)  
+        if delete_check1 and delete_check2 and delete_check3:
+           print(f"[DEBUG DELETE] 👈 Pulgar izquierda detectado!")
+           return "DELETE"
         
         # ===== GESTO: ESPACIO (SPACE) =====
         # Mano PLANA horizontal (todos los dedos extendidos y juntos)
         # Como si dijeras "ALTO"
-        if (f['index_ext'] and f['middle_ext'] and f['ring_ext'] and 
-            f['pinky_ext'] and not f['thumb_ext'] and
-            f['index_middle_d'] < 0.05 and  # Dedos juntos
-            f['middle_ring_d'] < 0.05 and
-            f['ring_pinky_d'] < 0.05 and
-            f['index_horiz']):  # Orientación horizontal
-            return "SPACE"
+
+        space_check1 = (f['index_ext'] and f['middle_ext'] and 
+                    f['ring_ext'] and f['pinky_ext'] and f['thumb_ext'])
+    
+        space_check2 = (f['index_middle_d'] < 0.06 and  # Dedos relativamente juntos
+                    f['middle_ring_d'] < 0.06 and
+                    f['ring_pinky_d'] < 0.06)
+        if space_check1 and space_check2:
+         print(f"[DEBUG SPACE] ✋ Mano abierta detectada (candidata para espacio)")
+         return "SPACE_CANDIDATE"  # Requiere ambas manos
         
         # ===== GESTO: LIMPIAR TODO (CLEAR) =====
         # AMBOS puños cerrados (detectar cuando hay 0 dedos extendidos)
         # Y las manos están cerca una de otra
+
         if f['fist'] and not f['thumb_ext']:
             return "CLEAR_CANDIDATE"  # Candidato, necesita ambas manos
         
