@@ -17,7 +17,11 @@ class GestureControls:
         self.control_history = deque(maxlen=8)  # Más frames para más estabilidad
         self.last_control = None
         self.control_cooldown = 0
-        self.cooldown_frames = 25  # Cooldown aumentado
+        self.cooldown_frames = 15  # REDUCIDO de 25 a 15 para repetir más rápido
+        
+        # NUEVO: Contador de frames sin detección
+        self.frames_without_gesture = 0
+        self.reset_threshold = 10  # Resetear después de 10 frames sin gesto
         
         # Configuración
         self.controls_enabled = True
