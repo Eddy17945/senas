@@ -14,14 +14,14 @@ class GestureControls:
     """
     
     def __init__(self):
-        self.control_history = deque(maxlen=8)  # Más frames para más estabilidad
+        self.control_history = deque(maxlen=5)  # REDUCIDO de 8 a 5
         self.last_control = None
         self.control_cooldown = 0
-        self.cooldown_frames = 15  # REDUCIDO de 25 a 15 para repetir más rápido
+        self.cooldown_frames = 5  # SÚPER REDUCIDO: de 15 a 5 frames (~0.16 segundos)
         
-        # NUEVO: Contador de frames sin detección
+        # Contador de frames sin detección
         self.frames_without_gesture = 0
-        self.reset_threshold = 10  # Resetear después de 10 frames sin gesto
+        self.reset_threshold = 5  # REDUCIDO: de 10 a 5 frames para reset más rápido
         
         # Configuración
         self.controls_enabled = True
@@ -37,6 +37,7 @@ class GestureControls:
                        both_hands_data: Optional[Dict] = None) -> Optional[str]:
         """
         Procesa un gesto de control y determina si ejecutarlo
+        MEJORADO: Permite repetir el mismo gesto sin esperar mucho
         
         Args:
             control_gesture: Gesto detectado ('DELETE', 'SPACE', etc.)
@@ -45,12 +46,28 @@ class GestureControls:
         Returns:
             Control confirmado o None
         """
+        # Si no hay gesto, incrementar contador
+        if not control_gesture:
+            self.frames_without_gesture += 1
+            
+            # Si pasaron suficientes frames sin gesto, resetear
+            if self.frames_without_gesture >= self.reset_threshold:
+                self.last_control = None
+                self.control_cooldown = 0
+                self.control_history.clear()
+                print(f"[CONTROL] 🔄 Reset - listo para nuevo gesto")
+            
+            return None
+        
+        # HAY un gesto detectado - resetear contador
+        self.frames_without_gesture = 0
+        
         # Reducir cooldown
         if self.control_cooldown > 0:
             self.control_cooldown -= 1
             return None
         
-        if not self.controls_enabled or not control_gesture:
+        if not self.controls_enabled:
             return None
         
         # CASO ESPECIAL 1: CLEAR requiere ambas manos (puños)
@@ -70,18 +87,19 @@ class GestureControls:
         # Agregar a historial
         self.control_history.append(control_gesture)
         
-        # Verificar estabilidad (5 de 8 frames deben ser el mismo gesto)
-        if len(self.control_history) >= 5:
-            recent = list(self.control_history)[-5:]
+        # Verificar estabilidad (4 de 8 frames) - REDUCIDO para más rapidez
+        if len(self.control_history) >= 4:
+            recent = list(self.control_history)[-4:]
             count = sum(1 for c in recent if c == control_gesture)
             
-            if count >= 4:  # Al menos 4 de 5 (más estricto)
-                # Evitar repetición inmediata del mismo control
-                if control_gesture != self.last_control:
+            if count >= 3:  # Al menos 3 de 4
+                # PERMITIR repetir el mismo gesto después del cooldown
+                if control_gesture != self.last_control or self.control_cooldown == 0:
                     self.last_control = control_gesture
                     self.control_cooldown = self.cooldown_frames
+                    self.control_history.clear()  # Limpiar historial después de ejecutar
                     
-                    print(f"[CONTROL] ✅ Gesto confirmado: {control_gesture}")
+                    print(f"[CONTROL] ✅ Gesto ejecutado: {control_gesture}")
                     return control_gesture
         
         return None
