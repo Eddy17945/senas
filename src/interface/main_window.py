@@ -1172,7 +1172,7 @@ class MainWindow:
             ).pack(pady=8)
             
             # Gestos de la categoría
-            for gesture_type, (emoji, description) in category_gestures.items():
+            for gesture_type, (emoji, description) in  category_gestures.items():
                 word = gestures.get(gesture_type)
                 
                 if word:  # Solo mostrar si el gesto está disponible

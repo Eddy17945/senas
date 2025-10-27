@@ -1,7 +1,7 @@
 # src/detector/complete_word_detector.py
 """
 Detector de palabras completas por gestos únicos
-AMPLIADO: Más palabras basadas en lenguaje de señas real
+CON DESCRIPCIONES DE GESTOS REALES
 """
 
 import numpy as np
@@ -9,11 +9,11 @@ from typing import Optional, Dict, List, Tuple
 
 class CompleteWordDetector:
     def __init__(self):
-        # Mapeo de gestos únicos a palabras completas (AMPLIADO)
+        # Mapeo de gestos únicos a palabras completas
         self.word_gestures = {
             # ===== SALUDOS Y CORTESÍA =====
             'THUMBS_UP': 'HOLA',
-            'WAVE': 'ADIOS',
+            'WAVE': 'ADIOS', 
             'PEACE': 'BUENOS',
             'OK_SIGN': 'GRACIAS',
             'PRAY_HANDS': 'POR FAVOR',
@@ -74,8 +74,73 @@ class CompleteWordDetector:
             # ===== ÚTILES =====
             'MONEY_RUB': 'DINERO',
             'FRIEND_LINK': 'AMIGO',
-            'THANK_BOW': 'GRACIAS',
-            'SORRY_CIRCLE': 'PERDON',
+        }
+        
+        # DESCRIPCIONES DE GESTOS REALES (reemplazando emojis)
+        self.gesture_descriptions = {
+            # ===== SALUDOS Y CORTESÍA =====
+            'THUMBS_UP': ('👍', 'Pulgar hacia arriba, mano cerrada'),
+            'WAVE': ('👋', 'Mano abierta moviéndose de lado a lado'),
+            'PEACE': ('✌️', 'Dedos índice y medio extendidos en V'),
+            'OK_SIGN': ('👌', 'Pulgar e índice formando círculo'),
+            'PRAY_HANDS': ('🙏', 'Ambas manos juntas como en oración'),
+            'BOW': ('🙇', 'Inclinación de cabeza con manos juntas'),
+            
+            # ===== RESPUESTAS BÁSICAS =====
+            'THUMBS_DOWN': ('👎', 'Pulgar hacia abajo, mano cerrada'),
+            'NOD_YES': ('✅', 'Cabeza moviéndose arriba y abajo'),
+            'SHAKA': ('🤙', 'Pulgar y meñique extendidos, otros dedos cerrados'),
+            'FIST_UP': ('✊', 'Puño cerrado levantado'),
+            
+            # ===== NECESIDADES =====
+            'POINTING_UP': ('☝️', 'Dedo índice señalando hacia arriba'),
+            'DRINK_GESTURE': ('🤲', 'Mano como sosteniendo vaso, llevando a boca'),
+            'EAT_GESTURE': ('🍴', 'Mano llevando comida imaginaria a la boca'),
+            'BATHROOM_SIGN': ('🚽', 'Mano haciendo movimiento de "T"'),
+            'SLEEP_GESTURE': ('😴', 'Manos juntas en lado de cabeza, ojos cerrados'),
+            
+            # ===== FAMILIA =====
+            'HEART_HANDS': ('❤️', 'Ambas manos formando corazón en el pecho'),
+            'MAMA_SIGN': ('👩', 'Dedo pulgar en barbilla, mano abierta'),
+            'PAPA_SIGN': ('👨', 'Dedo pulgar en frente, mano abierta'),
+            'BABY_ROCK': ('👶', 'Brazos como meciendo bebé'),
+            'FAMILY_SIGN': ('👨‍👩‍👧', 'Manos formando círculo familiar'),
+            
+            # ===== EMOCIONES =====
+            'HAPPY_SIGN': ('😊', 'Manos abiertas moviéndose cerca del pecho'),
+            'SAD_SIGN': ('😢', 'Dedos trazando lágrimas en mejillas'),
+            'ANGRY_FIST': ('😠', 'Puños cerrados temblando'),
+            'SCARED_HANDS': ('😨', 'Manos abiertas a los lados de la cara'),
+            'LOVE_HEART': ('💕', 'Manos cruzadas sobre el corazón'),
+            
+            # ===== ACCIONES =====
+            'CALL_ME': ('📞', 'Mano en forma de teléfono en oreja'),
+            'COME_HERE': ('👈', 'Mano con palma hacia arriba, dedos moviéndose'),
+            'GO_AWAY': ('👉', 'Mano empujando hacia adelante'),
+            'WAIT_HAND': ('✋', 'Mano abierta con palma hacia afuera'),
+            'STOP_HAND': ('🛑', 'Mano abierta, palma hacia adelante'),
+            
+            # ===== LUGARES =====
+            'HOME_SIGN': ('🏠', 'Manos formando techo sobre cabeza'),
+            'SCHOOL_SIGN': ('🏫', 'Manos aplaudiendo como pizarra'),
+            'WORK_SIGN': ('💼', 'Manos como sosteniendo maletín'),
+            'HOSPITAL_CROSS': ('🏥', 'Dedos formando cruz en brazo'),
+            
+            # ===== TIEMPO =====
+            'NOW_SIGN': ('⏰', 'Dedo índice tocando muñeca'),
+            'LATER_SIGN': ('🕐', 'Mano moviéndose sobre hombro'),
+            'TODAY_SIGN': ('📅', 'Dedo índice tocando nariz'),
+            'TOMORROW_POINT': ('➡️', 'Mano señalando hacia adelante'),
+            
+            # ===== COMUNICACIÓN =====
+            'PHONE_CALL': ('📱', 'Pulgar y meñique como teléfono'),
+            'WRITE_SIGN': ('✍️', 'Mano como escribiendo en palma'),
+            'READ_SIGN': ('📖', 'Manos como sosteniendo libro'),
+            'LISTEN_EAR': ('👂', 'Mano en oreja inclinándose'),
+            
+            # ===== ÚTILES =====
+            'MONEY_RUB': ('💰', 'Dedos pulgar e índice frotándose'),
+            'FRIEND_LINK': ('🤝', 'Manos estrechándose'),
         }
         
         # Historial de detección
@@ -87,7 +152,16 @@ class CompleteWordDetector:
         
         # Estadísticas de uso
         self.usage_stats = {}
-        
+    
+    def get_gesture_description(self, gesture_type: str) -> Tuple[str, str]:
+        """Obtiene la descripción del gesto para mostrar en la interfaz"""
+        return self.gesture_descriptions.get(gesture_type, ('❓', 'Gesto no descrito'))
+    
+    def get_all_gesture_descriptions(self) -> Dict[str, Tuple[str, str]]:
+        """Obtiene todas las descripciones de gestos"""
+        return self.gesture_descriptions.copy()
+
+    # ... (el resto del código se mantiene igual)
     def detect_complete_word(self, landmarks, confidence: float) -> Optional[str]:
         """Detecta si el gesto corresponde a una palabra completa"""
         if landmarks is None:
@@ -159,7 +233,7 @@ class CompleteWordDetector:
         return None
     
     def _classify_word_gesture(self, lm) -> Optional[str]:
-        """Clasifica gestos únicos para palabras completas - AMPLIADO"""
+        """Clasifica gestos únicos para palabras completas"""
         try:
             # Verificar que tenemos suficientes landmarks
             if lm.shape[0] < 21:
