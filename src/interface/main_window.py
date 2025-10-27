@@ -1042,13 +1042,14 @@ class MainWindow:
             print(f"Error dibujando overlay: {e}")
     
     def show_word_gestures_info(self):
-        """Muestra ventana con información de gestos disponibles"""
+        """Muestra ventana con TODAS las palabras completas disponibles"""
         info_window = tk.Toplevel(self.root)
         info_window.title("⚡ Palabras Completas por Gesto")
-        info_window.geometry("600x500")
+        info_window.geometry("900x700")
         info_window.configure(bg='white')
         
-        header = tk.Frame(info_window, bg=self.COLORS['primary'], height=60)
+        # Header
+        header = tk.Frame(info_window, bg=self.COLORS['primary'], height=70)
         header.pack(fill=tk.X)
         
         tk.Label(
@@ -1056,61 +1057,161 @@ class MainWindow:
             text="⚡ Gestos para Palabras Completas",
             bg=self.COLORS['primary'],
             fg='white',
-            font=('Segoe UI', 16, 'bold')
-        ).pack(pady=15)
+            font=('Segoe UI', 18, 'bold')
+        ).pack(pady=10)
         
-        content = tk.Frame(info_window, bg='white')
-        content.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        tk.Label(
+            header,
+            text=f"Total: {len(self.complete_word_detector.get_available_word_gestures())} palabras disponibles",
+            bg=self.COLORS['primary'],
+            fg='white',
+            font=('Segoe UI', 11)
+        ).pack()
         
+        # Contenido con scroll
+        main_container = tk.Frame(info_window, bg='white')
+        main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Canvas con scrollbar
+        canvas = tk.Canvas(main_container, bg='white', highlightthickness=0)
+        scrollbar = tk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg='white')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=850)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Obtener gestos disponibles
         gestures = self.complete_word_detector.get_available_word_gestures()
         
-        gesture_descriptions = {
-            'THUMBS_UP': ('👍', 'Pulgar arriba'),
-            'PEACE': ('✌️', 'Dedos en V'),
-            'OK_SIGN': ('👌', 'Círculo OK'),
-            'PRAY_HANDS': ('🙏', 'Manos juntas'),
-            'POINTING_UP': ('☝️', 'Índice arriba'),
-            'SHAKA': ('🤙', 'Llamada'),
-            'HEART_HANDS': ('❤️', 'Corazón'),
-            'CALL_ME': ('📞', 'Llámame'),
-            'THUMBS_DOWN': ('👎', 'Pulgar abajo'),
+        # Descripciones organizadas por categorías
+        gesture_categories = {
+            '🤝 SALUDOS Y CORTESÍA': {
+                'THUMBS_UP': ('👍', 'Pulgar arriba'),
+                'WAVE': ('👋', 'Mano oscilando'),
+                'PEACE': ('✌️', 'Dedos en V'),
+                'OK_SIGN': ('👌', 'Círculo OK'),
+                'PRAY_HANDS': ('🙏', 'Manos juntas'),
+                'BOW': ('🙇', 'Reverencia'),
+            },
+            '💬 RESPUESTAS': {
+                'THUMBS_DOWN': ('👎', 'Pulgar abajo'),
+                'NOD_YES': ('✅', 'Asentir'),
+                'SHAKA': ('🤙', 'Shaka'),
+                'FIST_UP': ('✊', 'Puño arriba'),
+            },
+            '🍽️ NECESIDADES': {
+                'POINTING_UP': ('☝️', 'Índice arriba'),
+                'DRINK_GESTURE': ('🥤', 'Beber'),
+                'EAT_GESTURE': ('🍴', 'Comer'),
+                'BATHROOM_SIGN': ('🚽', 'Baño'),
+                'SLEEP_GESTURE': ('😴', 'Dormir'),
+            },
+            '👨‍👩‍👧 FAMILIA': {
+                'HEART_HANDS': ('❤️', 'Corazón con manos'),
+                'MAMA_SIGN': ('👩', 'Mamá'),
+                'PAPA_SIGN': ('👨', 'Papá'),
+                'BABY_ROCK': ('👶', 'Mecer bebé'),
+                'FAMILY_SIGN': ('👨‍👩‍👧', 'Familia'),
+            },
+            '😊 EMOCIONES': {
+                'HAPPY_SIGN': ('😊', 'Sonrisa'),
+                'SAD_SIGN': ('😢', 'Triste'),
+                'ANGRY_FIST': ('😠', 'Puño enojado'),
+                'SCARED_HANDS': ('😨', 'Manos asustadas'),
+                'LOVE_HEART': ('💕', 'Amor'),
+            },
+            '🎯 ACCIONES': {
+                'CALL_ME': ('📞', 'Llámame'),
+                'COME_HERE': ('👈', 'Ven aquí'),
+                'GO_AWAY': ('👉', 'Vete'),
+                'WAIT_HAND': ('✋', 'Espera'),
+                'STOP_HAND': ('🛑', 'Alto'),
+            },
+            '📍 LUGARES': {
+                'HOME_SIGN': ('🏠', 'Casa'),
+                'SCHOOL_SIGN': ('🏫', 'Escuela'),
+                'WORK_SIGN': ('💼', 'Trabajo'),
+                'HOSPITAL_CROSS': ('🏥', 'Hospital'),
+            },
+            '⏰ TIEMPO': {
+                'NOW_SIGN': ('⏰', 'Ahora'),
+                'LATER_SIGN': ('🕐', 'Después'),
+                'TODAY_SIGN': ('📅', 'Hoy'),
+                'TOMORROW_POINT': ('➡️', 'Mañana'),
+            },
+            '💼 ÚTILES': {
+                'PHONE_CALL': ('📱', 'Teléfono'),
+                'WRITE_SIGN': ('✍️', 'Escribir'),
+                'READ_SIGN': ('📖', 'Leer'),
+                'LISTEN_EAR': ('👂', 'Escuchar'),
+                'MONEY_RUB': ('💰', 'Dinero'),
+                'FRIEND_LINK': ('🤝', 'Amigo'),
+            },
         }
         
-        for gesture_type, word in gestures.items():
-            if gesture_type in gesture_descriptions:
-                emoji, description = gesture_descriptions[gesture_type]
+        # Mostrar por categorías
+        for category_name, category_gestures in gesture_categories.items():
+            # Header de categoría
+            category_header = tk.Frame(scrollable_frame, bg=self.COLORS['primary'], height=40)
+            category_header.pack(fill=tk.X, pady=(10, 5))
+            
+            tk.Label(
+                category_header,
+                text=category_name,
+                bg=self.COLORS['primary'],
+                fg='white',
+                font=('Segoe UI', 12, 'bold')
+            ).pack(pady=8)
+            
+            # Gestos de la categoría
+            for gesture_type, (emoji, description) in category_gestures.items():
+                word = gestures.get(gesture_type)
                 
-                gesture_frame = tk.Frame(content, bg=self.COLORS['bg_light'], relief='raised', bd=2)
-                gesture_frame.pack(fill=tk.X, pady=5)
-                
-                tk.Label(
-                    gesture_frame,
-                    text=f"{emoji}  {description}",
-                    bg=self.COLORS['bg_light'],
-                    fg=self.COLORS['text_dark'],
-                    font=('Segoe UI', 11),
-                    width=20,
-                    anchor='w'
-                ).pack(side=tk.LEFT, padx=10, pady=8)
-                
-                tk.Label(
-                    gesture_frame,
-                    text="→",
-                    bg=self.COLORS['bg_light'],
-                    fg=self.COLORS['primary'],
-                    font=('Segoe UI', 14, 'bold')
-                ).pack(side=tk.LEFT, padx=5)
-                
-                tk.Label(
-                    gesture_frame,
-                    text=word,
-                    bg=self.COLORS['bg_light'],
-                    fg=self.COLORS['primary'],
-                    font=('Segoe UI', 12, 'bold')
-                ).pack(side=tk.LEFT, padx=10)
+                if word:  # Solo mostrar si el gesto está disponible
+                    gesture_frame = tk.Frame(scrollable_frame, bg=self.COLORS['bg_light'], 
+                                            relief='raised', bd=1)
+                    gesture_frame.pack(fill=tk.X, pady=2, padx=10)
+                    
+                    tk.Label(
+                        gesture_frame,
+                        text=f"{emoji}  {description}",
+                        bg=self.COLORS['bg_light'],
+                        fg=self.COLORS['text_dark'],
+                        font=('Segoe UI', 10),
+                        width=25,
+                        anchor='w'
+                    ).pack(side=tk.LEFT, padx=10, pady=6)
+                    
+                    tk.Label(
+                        gesture_frame,
+                        text="→",
+                        bg=self.COLORS['bg_light'],
+                        fg=self.COLORS['primary'],
+                        font=('Segoe UI', 12, 'bold')
+                    ).pack(side=tk.LEFT, padx=5)
+                    
+                    tk.Label(
+                        gesture_frame,
+                        text=word,
+                        bg=self.COLORS['bg_light'],
+                        fg=self.COLORS['primary'],
+                        font=('Segoe UI', 11, 'bold')
+                    ).pack(side=tk.LEFT, padx=10)
+        
+        # Footer con botón cerrar
+        footer = tk.Frame(info_window, bg='white', height=60)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
         
         tk.Button(
-            info_window,
+            footer,
             text="Entendido",
             command=info_window.destroy,
             bg=self.COLORS['primary'],
@@ -1120,7 +1221,7 @@ class MainWindow:
             padx=30,
             pady=10,
             cursor='hand2'
-        ).pack(pady=20)
+        ).pack(pady=15)
     
     def toggle_auto_add(self):
         self.auto_add_enabled = self.auto_add_var.get()

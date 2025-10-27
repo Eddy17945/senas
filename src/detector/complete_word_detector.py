@@ -1,7 +1,7 @@
 # src/detector/complete_word_detector.py
 """
 Detector de palabras completas por gestos únicos
-Aumenta 10x la velocidad de comunicación
+AMPLIADO: Más palabras basadas en lenguaje de señas real
 """
 
 import numpy as np
@@ -9,77 +9,100 @@ from typing import Optional, Dict, List, Tuple
 
 class CompleteWordDetector:
     def __init__(self):
-        # Mapeo de gestos únicos a palabras completas
+        # Mapeo de gestos únicos a palabras completas (AMPLIADO)
         self.word_gestures = {
-            # Saludos (los más usados)
+            # ===== SALUDOS Y CORTESÍA =====
             'THUMBS_UP': 'HOLA',
             'WAVE': 'ADIOS',
             'PEACE': 'BUENOS',
             'OK_SIGN': 'GRACIAS',
-            
-            # Cortesía
             'PRAY_HANDS': 'POR FAVOR',
-            'SORRY_GESTURE': 'DISCULPA',
-            'THANK_YOU': 'GRACIAS',
+            'BOW': 'DISCULPA',
             
-            # Necesidades básicas
+            # ===== RESPUESTAS BÁSICAS =====
+            'THUMBS_DOWN': 'NO',
+            'NOD_YES': 'SI',
+            'SHAKA': 'OK',
+            'FIST_UP': 'BIEN',
+            
+            # ===== NECESIDADES =====
             'POINTING_UP': 'NECESITO',
             'DRINK_GESTURE': 'AGUA',
             'EAT_GESTURE': 'COMIDA',
             'BATHROOM_SIGN': 'BAÑO',
+            'SLEEP_GESTURE': 'DORMIR',
             
-            # Familia
+            # ===== FAMILIA =====
             'HEART_HANDS': 'TE AMO',
             'MAMA_SIGN': 'MAMA',
             'PAPA_SIGN': 'PAPA',
+            'BABY_ROCK': 'BEBE',
+            'FAMILY_SIGN': 'FAMILIA',
             
-            # Respuestas rápidas
-            'THUMBS_DOWN': 'NO',
-            'SHAKA': 'OK',
-            'CALL_ME': 'AYUDA',
-            
-            # Emociones
+            # ===== EMOCIONES =====
             'HAPPY_SIGN': 'FELIZ',
             'SAD_SIGN': 'TRISTE',
+            'ANGRY_FIST': 'ENOJADO',
+            'SCARED_HANDS': 'MIEDO',
+            'LOVE_HEART': 'AMOR',
+            
+            # ===== ACCIONES =====
+            'CALL_ME': 'AYUDA',
+            'COME_HERE': 'VEN',
+            'GO_AWAY': 'VETE',
+            'WAIT_HAND': 'ESPERA',
+            'STOP_HAND': 'ALTO',
+            
+            # ===== LUGARES =====
+            'HOME_SIGN': 'CASA',
+            'SCHOOL_SIGN': 'ESCUELA',
+            'WORK_SIGN': 'TRABAJO',
+            'HOSPITAL_CROSS': 'HOSPITAL',
+            
+            # ===== TIEMPO =====
+            'NOW_SIGN': 'AHORA',
+            'LATER_SIGN': 'DESPUES',
+            'TODAY_SIGN': 'HOY',
+            'TOMORROW_POINT': 'MAÑANA',
+            
+            # ===== COMUNICACIÓN =====
+            'PHONE_CALL': 'TELEFONO',
+            'WRITE_SIGN': 'ESCRIBIR',
+            'READ_SIGN': 'LEER',
+            'LISTEN_EAR': 'ESCUCHAR',
+            
+            # ===== ÚTILES =====
+            'MONEY_RUB': 'DINERO',
+            'FRIEND_LINK': 'AMIGO',
+            'THANK_BOW': 'GRACIAS',
+            'SORRY_CIRCLE': 'PERDON',
         }
         
         # Historial de detección
         self.detection_history = []
-        self.stability_threshold = 8  # Frames necesarios para confirmar
+        self.stability_threshold = 8
         self.last_detected_word = None
         self.cooldown_frames = 0
-        self.cooldown_threshold = 30  # Evitar repetición inmediata
+        self.cooldown_threshold = 30
         
         # Estadísticas de uso
         self.usage_stats = {}
         
     def detect_complete_word(self, landmarks, confidence: float) -> Optional[str]:
-        """
-        Detecta si el gesto corresponde a una palabra completa
-        
-        Args:
-            landmarks: Lista de landmarks (puede venir como lista plana o array)
-            confidence: Confianza de la detección
-            
-        Returns:
-            Palabra detectada o None
-        """
+        """Detecta si el gesto corresponde a una palabra completa"""
         if landmarks is None:
             return None
         
-        # Convertir landmarks a array numpy si es necesario
+        # Convertir landmarks a array numpy
         try:
             if isinstance(landmarks, list):
-                # Si es una lista plana de 63 elementos (21 landmarks * 3 coords)
                 if len(landmarks) >= 63:
                     landmarks_array = np.array(landmarks[:63]).reshape(-1, 3)
-                # Si es lista de listas [[x,y,z], [x,y,z], ...]
                 elif len(landmarks) >= 21 and isinstance(landmarks[0], (list, tuple)):
                     landmarks_array = np.array(landmarks[:21])
                 else:
                     return None
             elif isinstance(landmarks, np.ndarray):
-                # Si ya es array, asegurar que tiene la forma correcta
                 if landmarks.size >= 63:
                     landmarks_array = landmarks.flatten()[:63].reshape(-1, 3)
                 elif landmarks.shape[0] >= 21 and landmarks.shape[1] == 3:
@@ -130,14 +153,13 @@ class CompleteWordDetector:
                         # Limpiar historial
                         self.detection_history.clear()
                         
+                        print(f"[PALABRA COMPLETA] ⚡ Detectada: {word} (gesto: {gesture_type})")
                         return word
         
         return None
     
     def _classify_word_gesture(self, lm) -> Optional[str]:
-        """
-        Clasifica gestos únicos para palabras completas
-        """
+        """Clasifica gestos únicos para palabras completas - AMPLIADO"""
         try:
             # Verificar que tenemos suficientes landmarks
             if lm.shape[0] < 21:
@@ -153,6 +175,7 @@ class CompleteWordDetector:
             index_mcp = lm[5]
             middle_tip = lm[12]
             middle_pip = lm[10]
+            middle_mcp = lm[9]
             ring_tip = lm[16]
             ring_pip = lm[14]
             pinky_tip = lm[20]
@@ -169,50 +192,44 @@ class CompleteWordDetector:
             thumb_index_dist = np.linalg.norm(thumb_tip - index_tip)
             thumb_middle_dist = np.linalg.norm(thumb_tip - middle_tip)
             index_middle_dist = np.linalg.norm(index_tip - middle_tip)
+            thumb_pinky_dist = np.linalg.norm(thumb_tip - pinky_tip)
             
-            # ===== GESTOS DE PALABRAS =====
+            # ===== GESTOS ORIGINALES =====
             
             # THUMBS_UP → "HOLA"
-            # Pulgar arriba, otros dedos cerrados
             if (thumb_up and not index_up and not middle_up and 
                 not ring_up and not pinky_up and
                 thumb_tip[1] < wrist[1] - 0.1):
                 return 'THUMBS_UP'
             
             # PEACE → "BUENOS"
-            # Índice y medio en V
             if (index_up and middle_up and not ring_up and not pinky_up and
                 not thumb_up and index_middle_dist > 0.06):
                 return 'PEACE'
             
             # OK_SIGN → "GRACIAS"
-            # Círculo con pulgar e índice
             if (thumb_index_dist < 0.06 and middle_up and ring_up and pinky_up):
                 return 'OK_SIGN'
             
             # PRAY_HANDS → "POR FAVOR"
-            # Manos juntas (aproximar con todos los dedos juntos hacia arriba)
             if (index_up and middle_up and ring_up and pinky_up and
                 thumb_up and index_middle_dist < 0.04 and
                 abs(index_tip[0] - middle_tip[0]) < 0.03):
                 return 'PRAY_HANDS'
             
             # POINTING_UP → "NECESITO"
-            # Solo índice arriba
             if (index_up and not middle_up and not ring_up and 
                 not pinky_up and not thumb_up and
                 index_tip[1] < index_mcp[1] - 0.08):
                 return 'POINTING_UP'
             
             # SHAKA → "OK"
-            # Pulgar y meñique extendidos
             if (thumb_up and not index_up and not middle_up and 
                 not ring_up and pinky_up and
-                np.linalg.norm(thumb_tip - pinky_tip) > 0.15):
+                thumb_pinky_dist > 0.15):
                 return 'SHAKA'
             
             # HEART_HANDS → "TE AMO"
-            # Aproximar: pulgar e índice formando corazón
             if (thumb_up and index_up and not middle_up and
                 thumb_index_dist < 0.10 and
                 thumb_tip[1] < index_mcp[1] and
@@ -220,17 +237,80 @@ class CompleteWordDetector:
                 return 'HEART_HANDS'
             
             # CALL_ME → "AYUDA"
-            # Pulgar y meñique extendidos cerca de la cara
             if (thumb_up and pinky_up and not index_up and 
                 not middle_up and not ring_up and
                 thumb_tip[0] < wrist[0] - 0.05):
                 return 'CALL_ME'
             
             # THUMBS_DOWN → "NO"
-            # Pulgar hacia abajo
             if (thumb_tip[1] > thumb_mcp[1] + 0.05 and
                 not index_up and not middle_up and not ring_up and not pinky_up):
                 return 'THUMBS_DOWN'
+            
+            # ===== NUEVOS GESTOS AMPLIADOS =====
+            
+            # FIST_UP → "BIEN" (puño cerrado hacia arriba)
+            if (not index_up and not middle_up and not ring_up and 
+                not pinky_up and not thumb_up and
+                wrist[1] > index_mcp[1]):
+                return 'FIST_UP'
+            
+            # STOP_HAND → "ALTO" (mano abierta hacia adelante)
+            if (index_up and middle_up and ring_up and pinky_up and
+                not thumb_up and
+                index_middle_dist < 0.05 and
+                abs(index_tip[1] - middle_tip[1]) < 0.04):
+                return 'STOP_HAND'
+            
+            # COME_HERE → "VEN" (mano con dedos curvándose)
+            if (index_up and middle_up and ring_up and pinky_up and
+                not thumb_up and
+                index_pip[1] < index_mcp[1] and
+                middle_pip[1] < middle_mcp[1]):
+                return 'COME_HERE'
+            
+            # WAIT_HAND → "ESPERA" (mano abierta horizontal)
+            if (index_up and middle_up and ring_up and pinky_up and
+                thumb_up and
+                abs(index_tip[0] - middle_tip[0]) > 0.08):
+                return 'WAIT_HAND'
+            
+            # LOVE_HEART → "AMOR" (forma de corazón más amplia)
+            if (thumb_up and index_up and middle_up and
+                not ring_up and not pinky_up and
+                thumb_index_dist < 0.12 and
+                thumb_middle_dist < 0.12):
+                return 'LOVE_HEART'
+            
+            # PHONE_CALL → "TELEFONO" (pulgar y meñique como teléfono)
+            if (thumb_up and pinky_up and not index_up and 
+                not middle_up and not ring_up and
+                thumb_tip[0] > wrist[0] and  # Pulgar a la derecha
+                thumb_pinky_dist > 0.12):
+                return 'PHONE_CALL'
+            
+            # NOW_SIGN → "AHORA" (ambas manos hacia abajo - aproximar con una)
+            if (index_up and middle_up and not ring_up and 
+                not pinky_up and not thumb_up and
+                index_tip[1] > index_mcp[1] - 0.05):
+                return 'NOW_SIGN'
+            
+            # FRIEND_LINK → "AMIGO" (índices enganchados - aproximar)
+            if (index_up and not middle_up and not ring_up and 
+                not pinky_up and thumb_up and
+                abs(thumb_tip[0] - index_tip[0]) < 0.06):
+                return 'FRIEND_LINK'
+            
+            # MONEY_RUB → "DINERO" (frotar dedos - aproximar con pulgar tocando dedos)
+            if (thumb_index_dist < 0.04 and thumb_middle_dist < 0.04 and
+                not ring_up and not pinky_up):
+                return 'MONEY_RUB'
+            
+            # HOME_SIGN → "CASA" (techo con manos - aproximar)
+            if (index_up and middle_up and ring_up and pinky_up and
+                thumb_up and
+                index_tip[1] < wrist[1] - 0.12):
+                return 'HOME_SIGN'
             
             return None
             
