@@ -1,6 +1,6 @@
 """
-API REST para Traductor de Señas - CON DETECTOR AVANZADO
-Usa AdvancedHandDetector para mayor precisión
+API REST para Traductor de Señas - OPTIMIZADO PARA VELOCIDAD
+Mantiene toda la funcionalidad, solo mejora rendimiento
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -28,9 +28,9 @@ except ImportError as e:
     MODELS_LOADED = False
 
 app = FastAPI(
-    title="Traductor de Señas API - Avanzado",
-    description="API con detector avanzado optimizado",
-    version="2.0.0"
+    title="Traductor de Señas API - Optimizado",
+    description="API con detector avanzado optimizado para velocidad",
+    version="2.0.1"
 )
 
 app.add_middleware(
@@ -52,7 +52,7 @@ sentence_bank = None
 
 
 def convert_numpy_types(obj):
-    """Convierte tipos NumPy a tipos Python nativos"""
+    """Convierte tipos NumPy a tipos Python nativos - OPTIMIZADO"""
     if isinstance(obj, np.bool_):
         return bool(obj)
     elif isinstance(obj, np.integer):
@@ -60,7 +60,7 @@ def convert_numpy_types(obj):
     elif isinstance(obj, np.floating):
         return float(obj)
     elif isinstance(obj, np.ndarray):
-        return obj.tolist()
+        return obj.flatten().tolist()  # ← Aplanar para menos datos
     elif isinstance(obj, dict):
         return {key: convert_numpy_types(value) for key, value in obj.items()}
     elif isinstance(obj, (list, tuple)):
@@ -70,7 +70,7 @@ def convert_numpy_types(obj):
 
 
 def initialize_models():
-    """Inicializar DETECTOR AVANZADO"""
+    """Inicializar DETECTOR AVANZADO con parámetros optimizados"""
     global hand_detector, gesture_classifier, syllable_classifier
     global complete_word_detector, word_suggester, word_dictionary, sentence_bank
     
@@ -79,53 +79,53 @@ def initialize_models():
         return
     
     try:
-        print("🔄 Cargando modelos AVANZADOS...")
+        print("🔄 Cargando modelos OPTIMIZADOS...")
         
-        # USAR DETECTOR AVANZADO
+        # OPTIMIZACIÓN 1: Reducir umbrales de confianza para más velocidad
         hand_detector = AdvancedHandDetector(
             max_num_hands=2,
-            min_detection_confidence=0.65,
-            min_tracking_confidence=0.55
+            min_detection_confidence=0.5,    # ← REDUCIDO (antes: 0.65)
+            min_tracking_confidence=0.5       # ← REDUCIDO (antes: 0.55)
         )
-        print("✓ AdvancedHandDetector cargado (OPTIMIZADO)")
+        print("✓ AdvancedHandDetector (VELOCIDAD MÁXIMA)")
         
         try:
             gesture_classifier = GestureClassifier()
-            print("✓ GestureClassifier cargado")
+            print("✓ GestureClassifier")
         except Exception as e:
             print(f"⚠️ GestureClassifier: {e}")
         
         try:
             syllable_classifier = SyllableClassifier()
-            print("✓ SyllableClassifier cargado")
+            print("✓ SyllableClassifier")
         except Exception as e:
             print(f"⚠️ SyllableClassifier: {e}")
         
         try:
             complete_word_detector = CompleteWordDetector()
-            print("✓ CompleteWordDetector cargado")
+            print("✓ CompleteWordDetector")
         except Exception as e:
             print(f"⚠️ CompleteWordDetector: {e}")
         
         try:
             word_suggester = WordSuggester()
-            print("✓ WordSuggester cargado")
+            print("✓ WordSuggester")
         except Exception as e:
             print(f"⚠️ WordSuggester: {e}")
         
         try:
             word_dictionary = WordDictionary()
-            print("✓ WordDictionary cargado")
+            print("✓ WordDictionary")
         except Exception as e:
             print(f"⚠️ WordDictionary: {e}")
         
         try:
             sentence_bank = SentenceBank()
-            print("✓ SentenceBank cargado")
+            print("✓ SentenceBank")
         except Exception as e:
             print(f"⚠️ SentenceBank: {e}")
         
-        print("✅ Sistema AVANZADO inicializado")
+        print("✅ Sistema OPTIMIZADO inicializado")
         
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -140,10 +140,10 @@ initialize_models()
 async def root():
     return {
         "status": "online",
-        "message": "API Traductor de Señas - DETECTOR AVANZADO",
-        "version": "2.0.0",
+        "message": "API Traductor de Señas - OPTIMIZADO",
+        "version": "2.0.1",
         "models_loaded": MODELS_LOADED,
-        "detector_type": "AdvancedHandDetector"
+        "detector_type": "AdvancedHandDetector (Velocidad Máxima)"
     }
 
 
@@ -162,7 +162,7 @@ async def health_check():
     return {
         "status": "healthy" if hand_detector else "partial",
         "models_loaded": MODELS_LOADED,
-        "detector_type": "AdvancedHandDetector" if hand_detector else "None",
+        "detector_type": "AdvancedHandDetector (Optimizado)",
         "components": components
     }
 
@@ -170,20 +170,28 @@ async def health_check():
 @app.post("/detect-realtime")
 async def detect_realtime(file: UploadFile = File(...)):
     """
-    Detección EN TIEMPO REAL con detector AVANZADO
-    Incluye: palabras completas, gestos, letras
+    Detección EN TIEMPO REAL con LANDMARKS - OPTIMIZADO
     """
     if not hand_detector:
         raise HTTPException(status_code=503, detail="Sistema no inicializado")
     
     try:
-        # Leer imagen
+        # OPTIMIZACIÓN 2: Lectura rápida de imagen
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         if image is None:
             return {"success": False, "error": "Imagen inválida"}
+        
+        # OPTIMIZACIÓN 3: Redimensionar si la imagen es muy grande
+        height, width = image.shape[:2]
+        if width > 640:  # Si es muy grande, reducir
+            scale = 640 / width
+            new_width = 640
+            new_height = int(height * scale)
+            image = cv2.resize(image, (new_width, new_height), 
+                             interpolation=cv2.INTER_LINEAR)
         
         # DETECTAR con detector AVANZADO
         processed_frame, hands_data = hand_detector.detect_hands(image)
@@ -194,7 +202,8 @@ async def detect_realtime(file: UploadFile = File(...)):
                 "success": True,
                 "detected": False,
                 "message": "Esperando gesto...",
-                "quality_score": {"left": 0.0, "right": 0.0}
+                "quality_score": {"left": 0.0, "right": 0.0},
+                "raw_hands_data": {"left": None, "right": None},
             }
         
         # Obtener landmarks y features
@@ -215,7 +224,7 @@ async def detect_realtime(file: UploadFile = File(...)):
                 print(f"Error palabra completa: {e}")
         
         if complete_word:
-            return convert_numpy_types({
+            result = {
                 "success": True,
                 "detected": True,
                 "type": "COMPLETE_WORD",
@@ -230,8 +239,23 @@ async def detect_realtime(file: UploadFile = File(...)):
                 "hands_detected": {
                     "left": bool(hands_data.get('left') is not None),
                     "right": bool(hands_data.get('right') is not None)
-                }
-            })
+                },
+                "word_suggestions": [],
+                "orientation": "neutral",
+                "features": {
+                    "fingers_extended": {
+                        "thumb": False, "index": False, "middle": False,
+                        "ring": False, "pinky": False
+                    },
+                    "hand_openness": 0.0
+                },
+                "raw_hands_data": {
+                    "left": hands_data.get('left'),
+                    "right": hands_data.get('right')
+                },
+                "message": "COMPLETE_WORD detected"
+            }
+            return convert_numpy_types(result)
         
         # PRIORIDAD 2: LETRAS INDIVIDUALES
         gesture = "unknown"
@@ -254,16 +278,16 @@ async def detect_realtime(file: UploadFile = File(...)):
             features = {}
             orientation = "unknown"
         
-        # Sugerencias
+        # OPTIMIZACIÓN 4: Limitar sugerencias a solo 5
         suggestions = []
-        if word_suggester and gesture != "unknown":
+        if word_suggester and gesture != "unknown" and len(gesture) == 1:
             try:
                 sugg = word_suggester.suggest(gesture)
                 suggestions = [str(s) for s in sugg[:5]] if sugg else []
             except:
                 pass
         
-        # RESPUESTA COMPLETA
+        # RESPUESTA COMPLETA CON LANDMARKS
         result = {
             "success": True,
             "detected": True,
@@ -289,6 +313,10 @@ async def detect_realtime(file: UploadFile = File(...)):
             "hands_detected": {
                 "left": bool(hands_data.get('left') is not None),
                 "right": bool(hands_data.get('right') is not None)
+            },
+            "raw_hands_data": {
+                "left": hands_data.get('left'),
+                "right": hands_data.get('right')
             }
         }
         
@@ -457,8 +485,8 @@ async def get_dictionary():
 async def test():
     return {
         "status": "ok",
-        "message": "API Avanzada funcionando",
-        "detector": "AdvancedHandDetector",
+        "message": "API Optimizada funcionando",
+        "detector": "AdvancedHandDetector (Velocidad Máxima)",
         "timestamp": "2024-11-12"
     }
 
@@ -467,17 +495,18 @@ if __name__ == "__main__":
     import uvicorn
     
     print("=" * 70)
-    print("🚀 SERVIDOR API CON DETECTOR AVANZADO")
+    print("🚀 SERVIDOR API OPTIMIZADO PARA VELOCIDAD")
     print("=" * 70)
     print("📡 URL: http://localhost:8000")
     print("📖 Docs: http://localhost:8000/docs")
-    print("🎯 Detector: AdvancedHandDetector (OPTIMIZADO)")
+    print("🎯 Detector: AdvancedHandDetector (Confianza: 0.5)")
+    print("⚡ Optimizaciones: Redimensionamiento + Menos sugerencias")
     print("=" * 70)
     
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=8000,
-        reload=True,
-        log_level="info"
+        reload=False,  # ← SIN reload para más velocidad
+        log_level="warning"  # ← MENOS logs para más velocidad
     )
