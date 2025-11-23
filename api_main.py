@@ -1,6 +1,6 @@
 """
 API REST para Traductor de Señas - OPTIMIZADO PARA VELOCIDAD
-Mantiene toda la funcionalidad, solo mejora rendimiento
+Compatible con Render.com
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -10,23 +10,9 @@ import numpy as np
 import sys
 from pathlib import Path
 import os
-from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
-
-# CORS para Flutter
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Puerto dinámico para Render
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+# Puerto dinámico para Render (IMPORTANTE)
+PORT = int(os.environ.get("PORT", 8000))
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -45,12 +31,14 @@ except ImportError as e:
     print(f"⚠️ Error importando módulos: {e}")
     MODELS_LOADED = False
 
+# Crear app UNA SOLA VEZ
 app = FastAPI(
     title="Traductor de Señas API - Optimizado",
     description="API con detector avanzado optimizado para velocidad",
     version="2.0.1"
 )
 
+# CORS para Flutter - CRÍTICO
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -78,7 +66,7 @@ def convert_numpy_types(obj):
     elif isinstance(obj, np.floating):
         return float(obj)
     elif isinstance(obj, np.ndarray):
-        return obj.flatten().tolist()  # ← Aplanar para menos datos
+        return obj.flatten().tolist()
     elif isinstance(obj, dict):
         return {key: convert_numpy_types(value) for key, value in obj.items()}
     elif isinstance(obj, (list, tuple)):
@@ -99,11 +87,10 @@ def initialize_models():
     try:
         print("🔄 Cargando modelos OPTIMIZADOS...")
         
-        # OPTIMIZACIÓN 1: Reducir umbrales de confianza para más velocidad
         hand_detector = AdvancedHandDetector(
             max_num_hands=2,
-            min_detection_confidence=0.5,    # ← REDUCIDO (antes: 0.65)
-            min_tracking_confidence=0.5       # ← REDUCIDO (antes: 0.55)
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5
         )
         print("✓ AdvancedHandDetector (VELOCIDAD MÁXIMA)")
         
@@ -187,14 +174,11 @@ async def health_check():
 
 @app.post("/detect-realtime")
 async def detect_realtime(file: UploadFile = File(...)):
-    """
-    Detección EN TIEMPO REAL con LANDMARKS - OPTIMIZADO
-    """
+    """Detección EN TIEMPO REAL con LANDMARKS - OPTIMIZADO"""
     if not hand_detector:
         raise HTTPException(status_code=503, detail="Sistema no inicializado")
     
     try:
-        # OPTIMIZACIÓN 2: Lectura rápida de imagen
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -202,19 +186,16 @@ async def detect_realtime(file: UploadFile = File(...)):
         if image is None:
             return {"success": False, "error": "Imagen inválida"}
         
-        # OPTIMIZACIÓN 3: Redimensionar si la imagen es muy grande
         height, width = image.shape[:2]
-        if width > 640:  # Si es muy grande, reducir
+        if width > 640:
             scale = 640 / width
             new_width = 640
             new_height = int(height * scale)
             image = cv2.resize(image, (new_width, new_height), 
                              interpolation=cv2.INTER_LINEAR)
         
-        # DETECTAR con detector AVANZADO
         processed_frame, hands_data = hand_detector.detect_hands(image)
         
-        # Sin detección
         if not hands_data['landmarks_list']:
             return {
                 "success": True,
@@ -224,7 +205,6 @@ async def detect_realtime(file: UploadFile = File(...)):
                 "raw_hands_data": {"left": None, "right": None},
             }
         
-        # Obtener landmarks y features
         landmarks = hands_data['landmarks_list'][0]
         
         # PRIORIDAD 1: PALABRAS COMPLETAS
@@ -288,7 +268,6 @@ async def detect_realtime(file: UploadFile = File(...)):
             except Exception as e:
                 print(f"Error clasificando gesto: {e}")
         
-        # Calcular features
         try:
             features = hand_detector.calculate_gesture_features(landmarks)
             orientation = hand_detector.get_hand_orientation(landmarks)
@@ -296,7 +275,6 @@ async def detect_realtime(file: UploadFile = File(...)):
             features = {}
             orientation = "unknown"
         
-        # OPTIMIZACIÓN 4: Limitar sugerencias a solo 5
         suggestions = []
         if word_suggester and gesture != "unknown" and len(gesture) == 1:
             try:
@@ -305,7 +283,6 @@ async def detect_realtime(file: UploadFile = File(...)):
             except:
                 pass
         
-        # RESPUESTA COMPLETA CON LANDMARKS
         result = {
             "success": True,
             "detected": True,
@@ -438,20 +415,13 @@ async def classify_gesture(file: UploadFile = File(...)):
         return {"success": False, "error": str(e)}
 
 
-
-
-# Nuevo endpoint ULTRA RÁPIDO - solo detección
 @app.post("/detect-landmarks-fast")
 async def detect_landmarks_fast(file: UploadFile = File(...)):
-    """
-    ULTRA RÁPIDO: Solo detecta landmarks, NO clasifica
-    La clasificación se hace en Flutter
-    """
+    """ULTRA RÁPIDO: Solo detecta landmarks, NO clasifica"""
     if not hand_detector:
         raise HTTPException(status_code=503, detail="Sistema no inicializado")
     
     try:
-        # Leer imagen
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -459,10 +429,8 @@ async def detect_landmarks_fast(file: UploadFile = File(...)):
         if image is None:
             return {"success": False, "error": "Imagen inválida"}
         
-        # SOLO DETECTAR (sin clasificar)
         processed_frame, hands_data = hand_detector.detect_hands(image)
         
-        # Sin manos
         if not hands_data['landmarks_list']:
             return {
                 "success": True,
@@ -470,13 +438,12 @@ async def detect_landmarks_fast(file: UploadFile = File(...)):
                 "landmarks": None
             }
         
-        # Enviar SOLO landmarks (lo más rápido posible)
         landmarks = hands_data['landmarks_list'][0]
         
         result = {
             "success": True,
             "detected": True,
-            "landmarks": landmarks,  # Solo esto
+            "landmarks": landmarks,
             "confidence": float(
                 hands_data.get('confidence', {}).get('left', 0) or 
                 hands_data.get('confidence', {}).get('right', 0)
@@ -557,7 +524,7 @@ async def test():
         "status": "ok",
         "message": "API Optimizada funcionando",
         "detector": "AdvancedHandDetector (Velocidad Máxima)",
-        "timestamp": "2024-11-12"
+        "timestamp": "2024-11-23"
     }
 
 
@@ -565,18 +532,16 @@ if __name__ == "__main__":
     import uvicorn
     
     print("=" * 70)
-    print("🚀 SERVIDOR API OPTIMIZADO PARA VELOCIDAD")
+    print("🚀 SERVIDOR API OPTIMIZADO - RENDER COMPATIBLE")
     print("=" * 70)
-    print("📡 URL: http://localhost:8000")
-    print("📖 Docs: http://localhost:8000/docs")
-    print("🎯 Detector: AdvancedHandDetector (Confianza: 0.5)")
-    print("⚡ Optimizaciones: Redimensionamiento + Menos sugerencias")
+    print(f"📡 Puerto: {PORT}")
+    print("📖 Docs: /docs")
     print("=" * 70)
     
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
-        reload=False,  # ← SIN reload para más velocidad
-        log_level="warning"  # ← MENOS logs para más velocidad
+        port=PORT,
+        reload=False,
+        log_level="info"
     )
