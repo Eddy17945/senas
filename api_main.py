@@ -9,6 +9,24 @@ import cv2
 import numpy as np
 import sys
 from pathlib import Path
+import os
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# CORS para Flutter
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Puerto dinámico para Render
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -411,6 +429,58 @@ async def classify_gesture(file: UploadFile = File(...)):
             "quality_score": float(hands_data['quality_score'].get('left', 0) or 
                                   hands_data['quality_score'].get('right', 0)),
             "alternatives": []
+        }
+        
+        return convert_numpy_types(result)
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+
+
+# Nuevo endpoint ULTRA RÁPIDO - solo detección
+@app.post("/detect-landmarks-fast")
+async def detect_landmarks_fast(file: UploadFile = File(...)):
+    """
+    ULTRA RÁPIDO: Solo detecta landmarks, NO clasifica
+    La clasificación se hace en Flutter
+    """
+    if not hand_detector:
+        raise HTTPException(status_code=503, detail="Sistema no inicializado")
+    
+    try:
+        # Leer imagen
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if image is None:
+            return {"success": False, "error": "Imagen inválida"}
+        
+        # SOLO DETECTAR (sin clasificar)
+        processed_frame, hands_data = hand_detector.detect_hands(image)
+        
+        # Sin manos
+        if not hands_data['landmarks_list']:
+            return {
+                "success": True,
+                "detected": False,
+                "landmarks": None
+            }
+        
+        # Enviar SOLO landmarks (lo más rápido posible)
+        landmarks = hands_data['landmarks_list'][0]
+        
+        result = {
+            "success": True,
+            "detected": True,
+            "landmarks": landmarks,  # Solo esto
+            "confidence": float(
+                hands_data.get('confidence', {}).get('left', 0) or 
+                hands_data.get('confidence', {}).get('right', 0)
+            )
         }
         
         return convert_numpy_types(result)
